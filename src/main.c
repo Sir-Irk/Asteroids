@@ -24,6 +24,7 @@
 typedef struct asteroid_t
 {
     Vector2 position;
+    Vector2 velocity;
     Vector2 vertices[8];
     f32     angular_velocity;
 } asteroid_t;
@@ -49,7 +50,7 @@ GetRandomVector2UnitCircle(f32 scale)
 }
 
 internal asteroid_t
-create_asteroid(f32 scale)
+create_asteroid(f32 scale, f32 speed)
 {
     asteroid_t asteroid = {};
     Vector2    average  = {};
@@ -73,6 +74,8 @@ create_asteroid(f32 scale)
         asteroid.vertices[i] = Vector2Subtract(asteroid.vertices[i], average);
     }
 
+    asteroid.velocity = GetRandomVector2UnitCircle(speed);
+
     return asteroid;
 }
 
@@ -95,18 +98,18 @@ main(void)
     i32 screen_width  = GetScreenWidth();
     i32 screen_height = GetScreenHeight();
 
-    const i32   asteroid_count = 4;
+    const i32   asteroid_count = 32;
     asteroid_t *asteroids      = si_push_array(&arena, asteroid_count, asteroid_t);
 
     for (i32 i = 0; i < asteroid_count; ++i) {
-        asteroids[i] = create_asteroid(128.0f);
+        asteroids[i] = create_asteroid(128.0f, GetRandomFloatRange(100.0f, 250.0f));
     }
 
-    Color clear_color = ColorLerp(BLACK, WHITE, 0.1f);
+    Color clear_color = ColorLerp(BLACK, WHITE, 0.0f);
 
     for (i32 i = 0; i < asteroid_count; ++i) {
         Vector2 center        = (Vector2){(f32)screen_width / 2, (f32)screen_height / 2};
-        asteroids[i].position = Vector2Add(center, GetRandomVector2UnitCircle(600));
+        asteroids[i].position = Vector2Add(center, GetRandomVector2UnitCircle(800));
     }
 
     while (!WindowShouldClose()) {
@@ -116,8 +119,8 @@ main(void)
         f32 dt = GetFrameTime();
 
         for (i32 i = 0; i < asteroid_count; ++i) {
-            asteroids[i].position.x += 100.0f * dt * (i + 1 * 0.5f);
-            asteroids[i].position.y += 100.0f * dt * (i + 1 * 0.5f);
+            asteroids[i].position.x += asteroids[i].velocity.x * dt;
+            asteroids[i].position.y += asteroids[i].velocity.y * dt;
 
             if (asteroids[i].position.x > screen_width) {
                 asteroids[i].position.x = 0;
@@ -135,18 +138,37 @@ main(void)
                 asteroids[i].vertices[v] = Vector2Transform(asteroids[i].vertices[v], mat);
             }
             // DrawCircle(asteroid.position.x, asteroid.position.y, 8.0f, BLUE);
-
-            for (i32 v = 0; v < si_array_count(asteroids[i].vertices); ++v) {
-                i32     next = (v + 1) % si_array_count(asteroids[i].vertices);
-                Vector2 pos0 = Vector2Add(asteroids[i].vertices[v], asteroids[i].position);
-                Vector2 pos1 = Vector2Add(asteroids[i].vertices[next], asteroids[i].position);
-                // DrawCircle(pos.x, pos.y, 8.0f, WHITE);
-                DrawLineEx(pos0, pos1, 2.0f, WHITE);
-            }
         }
 
         BeginDrawing();
         ClearBackground(clear_color);
+
+        Vector2 offset0 = {0.0f, screen_height};
+        Vector2 offset1 = {screen_width, 0.0f};
+        for (i32 i = 0; i < asteroid_count; ++i) {
+
+            for (i32 r = -1; r < 2; ++r) {
+                Vector2 off = Vector2Scale(offset0, (f32)r);
+                for (i32 v = 0; v < si_array_count(asteroids[i].vertices); ++v) {
+                    i32     next     = (v + 1) % si_array_count(asteroids[i].vertices);
+                    Vector2 position = Vector2Add(asteroids[i].position, off);
+                    Vector2 pos0     = Vector2Add(asteroids[i].vertices[v], position);
+                    Vector2 pos1     = Vector2Add(asteroids[i].vertices[next], position);
+                    DrawLineEx(pos0, pos1, 2.0f, WHITE);
+                }
+            }
+            for (i32 r = -1; r < 2; ++r) {
+                if (r == 0) continue;
+                Vector2 off = Vector2Scale(offset1, (f32)r);
+                for (i32 v = 0; v < si_array_count(asteroids[i].vertices); ++v) {
+                    i32     next     = (v + 1) % si_array_count(asteroids[i].vertices);
+                    Vector2 position = Vector2Add(asteroids[i].position, off);
+                    Vector2 pos0     = Vector2Add(asteroids[i].vertices[v], position);
+                    Vector2 pos1     = Vector2Add(asteroids[i].vertices[next], position);
+                    DrawLineEx(pos0, pos1, 2.0f, WHITE);
+                }
+            }
+        }
 
         DrawFPS(10, 10);
         EndDrawing();
