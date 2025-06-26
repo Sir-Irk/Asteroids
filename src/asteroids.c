@@ -58,8 +58,6 @@ typedef struct Bullet {
     Vector2 position;
     Vector2 velocity;
     f32     radius;
-    f32     time_spawned;
-    // Vector2 vertices[4];
 } Bullet;
 
 typedef struct BulletBuffer {
@@ -267,8 +265,7 @@ void UpdateBulletLives(BulletBuffer *bullets, Vector2 world_min, Vector2 world_m
 {
     for (i32 i = 0; i < bullets->count; ++i) {
         Bullet *b = &bullets->elements[i];
-        if (GetTime() - b->time_spawned >= 5.0f ||
-            (b->position.y > world_max.y || b->position.y < world_min.y || b->position.x > world_max.x || b->position.x < world_min.x)) {
+        if ((b->position.y > world_max.y || b->position.y < world_min.y || b->position.x > world_max.x || b->position.x < world_min.x)) {
             RemoveBullet(bullets, i--);
         }
     }
@@ -373,7 +370,7 @@ void Update(GameState *state)
         PlaySound(state->shoot_sound);
         Vector2 direction = Vector2Normalize(Vector2Subtract(mouse_pos, state->player.position));
         Vector2 pos       = Vector2Add(state->player.position, Vector2Scale(direction, state->player.height / 2.0f));
-        Bullet  bullet    = {pos, pos, Vector2Scale(direction, 900.0f), 8.0f, GetTime()};
+        Bullet  bullet    = {pos, pos, Vector2Scale(direction, 900.0f), 8.0f};
         PushBullet(&state->bullet_buffer, bullet);
     }
 
