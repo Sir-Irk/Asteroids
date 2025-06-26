@@ -517,6 +517,9 @@ int main(void)
 
     UnloadSound(global_state.shoot_sound);
     UnloadSound(global_state.explosion_sound);
+    UnloadSound(global_state.win_sound);
+    UnloadSound(global_state.lose_sound);
+
     CloseAudioDevice();
     CloseWindow();
 }
