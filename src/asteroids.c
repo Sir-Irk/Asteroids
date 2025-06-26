@@ -237,14 +237,6 @@ Asteroid CreateAsteroid(Vector2 position, Vector2 velocity, f32 scale, i32 gener
         average              = Vector2Add(average, vertex);
     }
 
-    /*
-    average = Vector2Scale(average, 1.0f / countof(asteroid.vertices));
-
-    for (i32 i = 0; i < countof(asteroid.vertices); ++i) {
-        asteroid.vertices[i] = Vector2Subtract(asteroid.vertices[i], average);
-    }
-    */
-
     asteroid.position         = position;
     asteroid.velocity         = velocity;
     asteroid.generation       = generation;

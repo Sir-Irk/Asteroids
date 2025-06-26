@@ -4,4 +4,5 @@ textures/
 build/
 gf2
 log.txt
+push.sh
 *.zip
