@@ -221,9 +221,9 @@ void UpdateAsteroidPositions(AsteroidBuffer *asteroid_buffer, f32 min_x, f32 min
 Asteroid CreateAsteroid(Vector2 position, Vector2 velocity, f32 scale, i32 generation)
 {
     Asteroid asteroid = {};
-    Vector2  average  = {};
-    i32      count    = countof(asteroid.vertices);
-    f32      step     = 2 * PI / count;
+
+    i32 count = countof(asteroid.vertices);
+    f32 step  = 2 * PI / count;
 
     for (i32 i = 0; i < count; ++i) {
         f32 angle = (i + 1) * step;
@@ -233,7 +233,6 @@ Asteroid CreateAsteroid(Vector2 position, Vector2 velocity, f32 scale, i32 gener
 
         Vector2 vertex       = Vector2Scale(Vector2Normalize((Vector2){x, y}), s);
         asteroid.vertices[i] = vertex;
-        average              = Vector2Add(average, vertex);
     }
 
     asteroid.position         = position;
