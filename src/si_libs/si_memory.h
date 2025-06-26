@@ -16,31 +16,21 @@
 #include <sys/mman.h>
 #endif
 
-#define si_swap(a, b, type)                                                                                                                \
-    do {                                                                                                                                   \
-        type tmp = (a);                                                                                                                    \
-        (a)      = (b);                                                                                                                    \
-        (b)      = (tmp);                                                                                                                  \
-    } while (0)
-
 typedef ptrdiff_t si_size;
 
-typedef struct si_primary_buffer
-{
+typedef struct si_primary_buffer {
     si_size size;
     void   *data;
     int     is_stack_buffer;
 } si_primary_buffer;
 
-typedef struct si_memory_arena
-{
+typedef struct si_memory_arena {
     si_size  size;
     si_size  used;
     uint8_t *base;
 } si_memory_arena;
 
-typedef struct si_temp_memory
-{
+typedef struct si_temp_memory {
     si_memory_arena *arena;
     size_t           used;
 } si_temp_memory;
@@ -62,20 +52,15 @@ typedef struct si_temp_memory
 #define si_push_array_aligned(arena, count, type, alignment) (type *)si__push_size_aligned(arena, (count) * sizeof(type), alignment)
 #define si_push_size_aligned(arena, size, alignment) si__push_size_aligned(arena, (size), alignment)
 
-static void *
-si__push_size(si_memory_arena *arena, si_size size, int clear);
+static void *si__push_size(si_memory_arena *arena, si_size size, int clear);
 
-static si_temp_memory
-si_start_temp_memory(si_memory_arena *arena);
+static si_temp_memory si_start_temp_memory(si_memory_arena *arena);
 
-static void
-si_pop_temp_memory(si_temp_memory temp);
+static void si_pop_temp_memory(si_temp_memory temp);
 
-static void
-si_pop_and_clear_temp_memory(si_temp_memory temp);
+static void si_pop_and_clear_temp_memory(si_temp_memory temp);
 
-static si_primary_buffer
-si_primary_buffer_stack(size_t sizeInBytes, void *buffer);
+static si_primary_buffer si_primary_buffer_stack(size_t sizeInBytes, void *buffer);
 
 #define si_array_count(a) (sizeof(a) / sizeof(a[0]))
 
@@ -83,8 +68,7 @@ si_primary_buffer_stack(size_t sizeInBytes, void *buffer);
 
 #ifdef _WIN32
 #include <memoryapi.h>
-static si_primary_buffer
-si_allocate_primary_buffer(si_size sizeInBytes, void *baseAddress)
+static si_primary_buffer si_allocate_primary_buffer(si_size sizeInBytes, void *baseAddress)
 {
     si_primary_buffer result = {0};
     result.data              = VirtualAlloc(baseAddress, sizeInBytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
@@ -95,8 +79,7 @@ si_allocate_primary_buffer(si_size sizeInBytes, void *baseAddress)
     return result;
 }
 
-static void
-si_free(si_primary_buffer *buffer)
+static void si_free(si_primary_buffer *buffer)
 {
     assert(buffer);
     assert(buffer->data);
@@ -107,8 +90,7 @@ si_free(si_primary_buffer *buffer)
 }
 #else
 
-static si_primary_buffer
-si_primary_buffer_stack(size_t sizeInBytes, void *buffer)
+static si_primary_buffer si_primary_buffer_stack(size_t sizeInBytes, void *buffer)
 {
     assert(buffer);
     assert(sizeInBytes > 0);
@@ -119,8 +101,7 @@ si_primary_buffer_stack(size_t sizeInBytes, void *buffer)
     return result;
 }
 
-static si_primary_buffer
-si_allocate_primary_buffer(size_t sizeInBytes, void *baseAddress)
+static si_primary_buffer si_allocate_primary_buffer(size_t sizeInBytes, void *baseAddress)
 {
     assert(sizeInBytes > 0);
     si_primary_buffer result = {};
@@ -130,8 +111,7 @@ si_allocate_primary_buffer(size_t sizeInBytes, void *baseAddress)
     return result;
 }
 
-static void
-si_free(si_primary_buffer *buffer)
+static void si_free(si_primary_buffer *buffer)
 {
     assert(buffer);
     assert(buffer->data);
@@ -143,8 +123,7 @@ si_free(si_primary_buffer *buffer)
 
 #endif //_WIN32
 //
-static si_memory_arena
-si_make_arena(si_primary_buffer *buffer, si_size size)
+static si_memory_arena si_make_arena(si_primary_buffer *buffer, si_size size)
 {
     assert(size <= buffer->size);
 
@@ -157,8 +136,7 @@ si_make_arena(si_primary_buffer *buffer, si_size size)
     return result;
 }
 
-static si_memory_arena
-si_make_arena_segment(si_primary_buffer *buffer, si_size size, si_size offset)
+static si_memory_arena si_make_arena_segment(si_primary_buffer *buffer, si_size size, si_size offset)
 {
     assert(size <= buffer->size);
 
@@ -171,8 +149,7 @@ si_make_arena_segment(si_primary_buffer *buffer, si_size size, si_size offset)
     return result;
 }
 
-static void
-si_initialize_arena(si_memory_arena *arena, si_size size, void *base)
+static void si_initialize_arena(si_memory_arena *arena, si_size size, void *base)
 {
     arena->size = size;
     arena->base = (uint8_t *)base;
@@ -181,8 +158,7 @@ si_initialize_arena(si_memory_arena *arena, si_size size, void *base)
 
 // TODO: remove stdlib
 #include <string.h>
-static void *
-si__push_size(si_memory_arena *arena, si_size size, int clear)
+static void *si__push_size(si_memory_arena *arena, si_size size, int clear)
 {
     assert((arena->used + size) <= arena->size);
     void *result = arena->base + arena->used;
@@ -193,8 +169,7 @@ si__push_size(si_memory_arena *arena, si_size size, int clear)
     return result;
 }
 
-static void *
-si_align(void *ptr, int32_t alignment)
+static void *si_align(void *ptr, int32_t alignment)
 {
     int32_t a      = alignment - 1;
     void   *result = (void *)(((uintptr_t)(ptr) + a) & ~(uintptr_t)a);
@@ -203,8 +178,7 @@ si_align(void *ptr, int32_t alignment)
 }
 
 // TODO: add versions of push that clears the memory to zero
-static void *
-si__push_size_aligned(si_memory_arena *arena, size_t size, int32_t alignment)
+static void *si__push_size_aligned(si_memory_arena *arena, size_t size, int32_t alignment)
 {
     void     *unaligned = arena->base + arena->used;
     void     *result    = si_align(unaligned, alignment);
@@ -216,8 +190,7 @@ si__push_size_aligned(si_memory_arena *arena, size_t size, int32_t alignment)
     return result;
 }
 
-static void
-si_clear_arena(si_memory_arena *arena, int clearToZero)
+static void si_clear_arena(si_memory_arena *arena, int clearToZero)
 {
     if (clearToZero) {
         memset(arena->base, 0, arena->size);
@@ -225,8 +198,7 @@ si_clear_arena(si_memory_arena *arena, int clearToZero)
     arena->used = 0;
 }
 
-static si_temp_memory
-si_start_temp_memory(si_memory_arena *arena)
+static si_temp_memory si_start_temp_memory(si_memory_arena *arena)
 {
     si_temp_memory result = {0};
     assert(arena);
@@ -235,15 +207,13 @@ si_start_temp_memory(si_memory_arena *arena)
     return result;
 }
 
-static void
-si_pop_temp_memory(si_temp_memory temp)
+static void si_pop_temp_memory(si_temp_memory temp)
 {
     assert(temp.arena);
     temp.arena->used = temp.used;
 }
 
-static void
-si_pop_and_clear_temp_memory(si_temp_memory temp)
+static void si_pop_and_clear_temp_memory(si_temp_memory temp)
 {
     assert(temp.arena);
     ptrdiff_t bytesToClear = temp.arena->used - temp.used;

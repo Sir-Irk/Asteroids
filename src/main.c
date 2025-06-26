@@ -1,90 +1,95 @@
 #include <assert.h>
+#include <limits.h>
 #include <pthread.h>
-#include <stdio.h>
-
-#include <math.h>
 #include <raylib.h>
 #include <raymath.h>
-#include "gui.h"
-
-#define SI_MEMORY_IMPLEMENTATION
-#include "si_libs/si_memory.h"
+#include <stdlib.h>
 
 #include "raylib.h"
-#include "si_libs/types.h"
 
-#include "threadpool.h"
+#include <math.h>
+#include <stdint.h>
 
-#include <float.h>
+typedef int8_t  i8;
+typedef int16_t i16;
+typedef int32_t i32;
+typedef int64_t i64;
 
-#include "gui.c"
+typedef uint8_t  u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
 
-#include <limits.h>
+typedef i32 b32;
 
-typedef struct asteroid_t
-{
+typedef float  f32;
+typedef double f64;
+
+#define swap(a, b, type)                                                                                                                   \
+    do {                                                                                                                                   \
+        type tmp = (a);                                                                                                                    \
+        (a)      = (b);                                                                                                                    \
+        (b)      = (tmp);                                                                                                                  \
+    } while (0)
+
+#define countof(a) (sizeof(a) / sizeof(a[0]))
+
+typedef struct Asteroid {
     Vector2 position;
     Vector2 velocity;
     f32     angular_velocity;
-    b32     child;
+    i32     generation; // 3 generations. 0 = Big asteroid, 1 = Medium, 2 = Small, >=3 = dead
     Vector2 vertices[12];
-} asteroid_t;
+} Asteroid;
 
-typedef struct player_t
-{
+typedef struct Player {
     Vector2 position;
     Vector2 velocity;
     f32     rotation;
-    Vector2 vertices[3];
-} player_t;
+    Vector2 vertices[4];
+} Player;
 
-typedef struct bullet_t
-{
+typedef struct Bullet {
     Vector2 prev_position;
     Vector2 position;
     Vector2 velocity;
+    f32     radius;
     f32     time_spawned;
     // Vector2 vertices[4];
-} bullet_t;
+} Bullet;
 
-typedef struct bullet_array_t
-{
-    i32       capacity;
-    i32       count;
-    bullet_t *bullets;
+typedef struct BulletBuffer {
+    i32    capacity;
+    i32    count;
+    Bullet elements[64];
+} BulletBuffer;
 
-} bullet_array_t;
+typedef struct AsteroidBuffer {
+    i32      capacity;
+    i32      count;
+    Asteroid elements[64];
+} AsteroidBuffer;
 
-internal bullet_t *
-push_bullet(bullet_array_t *array, bullet_t bullet)
+Bullet *PushBullet(BulletBuffer *array, Bullet bullet)
 {
     if (array->count + 1 > array->capacity) {
         return NULL;
     }
 
-    array->bullets[array->count] = bullet;
-    return &array->bullets[array->count++];
+    array->elements[array->count] = bullet;
+    return &array->elements[array->count++];
 }
 
-internal void
-remove_bullet(bullet_array_t *array, i32 index)
+void RemoveBullet(BulletBuffer *array, i32 index)
 {
     assert(index >= 0);
     assert(index < array->count);
 
-    si_swap(array->bullets[index], array->bullets[array->count - 1], bullet_t);
+    swap(array->elements[index], array->elements[array->count - 1], Bullet);
     array->count--;
 }
 
-typedef struct asteroid_array_t
-{
-    i32         capacity;
-    i32         count;
-    asteroid_t *elements;
-} asteroid_array_t;
-
-internal asteroid_t *
-push_asteroid(asteroid_array_t *array, asteroid_t asteroid)
+Asteroid *PushAsteroid(AsteroidBuffer *array, Asteroid asteroid)
 {
     if (array->count + 1 > array->capacity) {
         return NULL;
@@ -94,43 +99,89 @@ push_asteroid(asteroid_array_t *array, asteroid_t asteroid)
     return &array->elements[array->count++];
 }
 
-internal void
-remove_asteroid(asteroid_array_t *array, i32 index)
+void RemoveAsteroid(AsteroidBuffer *array, i32 index)
 {
     assert(index >= 0);
     assert(index < array->count);
 
-    si_swap(array->elements[index], array->elements[array->count - 1], asteroid_t);
+    swap(array->elements[index], array->elements[array->count - 1], Asteroid);
     array->count--;
 }
 
-internal f32
-GetRandomFloat01()
-{
-    return (f32)GetRandomValue(0, INT_MAX) / (f32)INT_MAX;
-}
+f32 GetRandomFloat01() { return (f32)GetRandomValue(0, INT_MAX) / (f32)INT_MAX; }
 
-internal f32
-GetRandomFloatRange(f32 min, f32 max)
-{
-    return min + (max - min) * GetRandomFloat01();
-}
+f32 GetRandomFloatRange(f32 min, f32 max) { return min + (max - min) * GetRandomFloat01(); }
 
-internal Vector2
-GetRandomVector2UnitCircle(f32 scale)
+Vector2 GetRandomVector2UnitCircle(f32 scale)
 {
     f32 x = (GetRandomFloat01() * 2.0f - 1.0f);
     f32 y = (GetRandomFloat01() * 2.0f - 1.0f);
     return Vector2Scale(Vector2Normalize((Vector2){x, y}), scale);
 }
 
-internal asteroid_t
-create_asteroid(f32 scale, Vector2 velocity, b32 child)
+b32 CheckCollionPlayerLine(Player *player, Vector2 p0, Vector2 p1)
 {
-    asteroid_t asteroid = {};
-    Vector2    average  = {};
-    i32        count    = si_array_count(asteroid.vertices);
-    f32        step     = 2 * PI / count;
+    for (i32 pv = 0; pv < countof(player->vertices); ++pv) {
+        i32     pv_next = (pv + 1) % countof(player->vertices);
+        Vector2 vert0   = Vector2Add(player->vertices[pv], player->position);
+        Vector2 vert1   = Vector2Add(player->vertices[pv_next], player->position);
+        Vector2 collision;
+        if (CheckCollisionLines(p0, p1, vert0, vert1, &collision)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+i32 CheckCollisionBulletLine(BulletBuffer *bullets, Vector2 p0, Vector2 p1)
+{
+    for (i32 b = 0; b < bullets->count; ++b) {
+        Bullet *bullet = &bullets->elements[b];
+
+        Vector2 delta   = Vector2Normalize(Vector2Subtract(bullet->position, bullet->prev_position));
+        Vector2 new_pos = Vector2Add(bullet->position, Vector2Scale(delta, bullet->radius));
+
+        Vector2 collision;
+        if (CheckCollisionLines(p0, p1, bullet->prev_position, new_pos, &collision) ||
+            CheckCollisionCircleLine(bullet->position, bullet->radius, p0, p1)) {
+            return b;
+        }
+    }
+    return -1;
+}
+
+void UpdateAsteroidPositions(AsteroidBuffer *asteroid_buffer, f32 min_x, f32 min_y, f32 max_x, f32 max_y, f32 dt)
+{
+    for (i32 i = 0; i < asteroid_buffer->count; ++i) {
+        Asteroid *a = &asteroid_buffer->elements[i];
+        a->position.x += a->velocity.x * dt;
+        a->position.y += a->velocity.y * dt;
+
+        if (a->position.x > max_x) {
+            a->position.x -= max_x;
+        } else if (a->position.x < min_x) {
+            a->position.x += max_x;
+        }
+
+        if (a->position.y > max_y) {
+            a->position.y -= max_y;
+        } else if (a->position.y < min_y) {
+            a->position.y += max_y;
+        }
+
+        Matrix mat = MatrixRotateZ(a->angular_velocity * dt);
+        for (i32 v = 0; v < countof(a->vertices); ++v) {
+            a->vertices[v] = Vector2Transform(a->vertices[v], mat);
+        }
+    }
+}
+
+Asteroid CreateAsteroid(Vector2 position, Vector2 velocity, f32 scale, i32 generation)
+{
+    Asteroid asteroid = {};
+    Vector2  average  = {};
+    i32      count    = countof(asteroid.vertices);
+    f32      step     = 2 * PI / count;
 
     for (i32 i = 0; i < count; ++i) {
         f32 angle = (i + 1) * step;
@@ -143,87 +194,85 @@ create_asteroid(f32 scale, Vector2 velocity, b32 child)
         average              = Vector2Add(average, vertex);
     }
 
-    average = Vector2Scale(average, 1.0f / si_array_count(asteroid.vertices));
+    average = Vector2Scale(average, 1.0f / countof(asteroid.vertices));
 
-    for (i32 i = 0; i < si_array_count(asteroid.vertices); ++i) {
+    for (i32 i = 0; i < countof(asteroid.vertices); ++i) {
         asteroid.vertices[i] = Vector2Subtract(asteroid.vertices[i], average);
     }
 
-    asteroid.velocity = velocity;
-    asteroid.child    = child;
+    asteroid.position         = position;
+    asteroid.velocity         = velocity;
+    asteroid.generation       = generation;
+    asteroid.angular_velocity = GetRandomFloatRange(-2.0f, 2.0f);
 
     return asteroid;
 }
 
-int
-main(void)
+void UpdateAndDraw() { }
+
+int main(void)
 {
-    unsigned char _stack_buffer[si_megabytes(2)] = {};
-
-    si_primary_buffer primary_buffer = si_primary_buffer_stack(sizeof(_stack_buffer), _stack_buffer);
-
-    si_memory_arena arena          = si_make_arena(&primary_buffer, primary_buffer.size / 2);
-    si_memory_arena temporal_arena = si_make_arena_segment(&primary_buffer, primary_buffer.size / 2, primary_buffer.size / 2);
-
-    // SetConfigFlags(FLAG_FULLSCREEN_MODE);
     SetConfigFlags(FLAG_MSAA_4X_HINT);
-    InitWindow(GetMonitorWidth(0), GetMonitorHeight(0), "Asteroids");
+    // InitWindow(2560 / 4, 1440 / 4, "Asteroids");
+    InitWindow(1920, 1080, "Asteroids");
     InitAudioDevice();
 
     SetTargetFPS(GetMonitorRefreshRate(0));
-    // SetTargetFPS(144);
-    ToggleBorderlessWindowed();
-    // SetRandomSeed(time(NULL));
-    SetRandomSeed(8);
+    SetRandomSeed(time(NULL));
 
-    Sound sound = LoadSound("sounds/spring.wav");
+    Sound shoot_sound     = LoadSound("sounds/shoot.wav");
+    Sound explosion_sound = LoadSound("sounds/explosion.wav");
 
-    i32 screen_width   = GetScreenWidth();
-    i32 screen_height  = GetScreenHeight();
-    f32 asteroid_scale = 128.0f;
+    SetSoundVolume(explosion_sound, 0.7f);
+    f32    player_width  = 48.0f;
+    f32    player_height = 64.0f;
+    Player player        = {};
 
-    asteroid_array_t asteroid_array = {
-        .count    = 0,
-        .capacity = 64,
-        .elements = si_push_array(&arena, asteroid_array.capacity, asteroid_t),
-    };
-
-    for (i32 i = 0; i < 16; ++i) {
-        push_asteroid(&asteroid_array,
-                      create_asteroid(asteroid_scale, GetRandomVector2UnitCircle(GetRandomFloatRange(100.0f, 250.0f)), false));
-    }
-
-    f32      player_width  = 48.0f;
-    f32      player_height = 64.0f;
-    player_t player        = {};
-
-    Vector2 player_vert_ref[3] = {
+    Vector2 player_vert_ref[countof(player.vertices)] = {
         {0.0f, -player_height / 2.0f},
         {player_width / 2.0f, player_height / 2.0f},
+        {0.0f, player_height / 8.0f},
         {-player_width / 2.0f, player_height / 2.0f},
     };
 
-    player.position    = (Vector2){screen_width / 2.0f, screen_height / 2.0f};
+    i32 screen_width  = GetScreenWidth();
+    i32 screen_height = GetScreenHeight();
+
+    Color clear_color = ColorLerp(BLACK, WHITE, 0.0f);
+
+    Vector2 world_max = {2560.0f, 1440.0f};
+
+    // NOTE: assumes aspect ratio will not change
+    Camera2D camera = {};
+    camera.zoom     = screen_width / 2560.0f;
+    // camera.offset   = (Vector2){screen_width / 2.0f * (1.0f - camera.zoom), screen_height / 2.0f * (1.0f - camera.zoom)};
+
+    f32            asteroid_scale = 128.0f;
+    AsteroidBuffer asteroid_array = {
+        .count    = 0,
+        .elements = {0},
+        .capacity = countof(asteroid_array.elements),
+    };
+
+    Asteroid *asteroids = asteroid_array.elements;
+
+    player.position    = (Vector2){world_max.x / 2.0f, world_max.y / 2.0f};
     player.vertices[0] = player_vert_ref[0];
     player.vertices[1] = player_vert_ref[1];
     player.vertices[2] = player_vert_ref[2];
 
-    bullet_array_t bullet_array = {
+    BulletBuffer bullet_array = {
         .count    = 0,
-        .capacity = 32,
-        .bullets  = si_push_array(&arena, bullet_array.capacity, bullet_t),
+        .elements = {0},
+        .capacity = countof(bullet_array.elements),
     };
 
-    Color clear_color = ColorLerp(BLACK, WHITE, 0.0f);
-
-    asteroid_t *asteroids = asteroid_array.elements;
-
-    for (i32 i = 0; i < asteroid_array.count; ++i) {
-        Vector2 center        = (Vector2){(f32)screen_width / 2, (f32)screen_height / 2};
-        asteroids[i].position = Vector2Add(center, GetRandomVector2UnitCircle(GetRandomFloatRange(400.0f, 800.0f)));
+    for (i32 i = 0; i < 12; ++i) {
+        Vector2 screen_center = (Vector2){(f32)world_max.x / 2, (f32)world_max.y / 2};
+        Vector2 position      = Vector2Add(screen_center, GetRandomVector2UnitCircle(GetRandomFloatRange(600.0f, world_max.x)));
+        Vector2 velocity      = GetRandomVector2UnitCircle(GetRandomFloatRange(50.0f, 250.0f));
+        PushAsteroid(&asteroid_array, CreateAsteroid(position, velocity, asteroid_scale, 0));
     }
-
-    i32 red_id = -1;
 
     b32 game_over = false;
 
@@ -231,195 +280,149 @@ main(void)
         screen_width  = GetScreenWidth();
         screen_height = GetScreenHeight();
 
-        Vector2 mouse_pos = GetMousePosition();
+        Vector2 mouse_pos = Vector2Scale(GetMousePosition(), 1.0f / camera.zoom);
         f32     dt        = GetFrameTime();
 
         if (!game_over) {
             for (i32 i = 0; i < bullet_array.count; ++i) {
-                bullet_t *b = &bullet_array.bullets[i];
+                Bullet *b = &bullet_array.elements[i];
                 if (GetTime() - b->time_spawned >= 5.0f ||
-                    (b->position.y > screen_height || b->position.y < 0.0f || b->position.x > screen_width || b->position.x < 0.0f)) {
-                    remove_bullet(&bullet_array, i);
-                    --i;
+                    (b->position.y > world_max.y || b->position.y < 0.0f || b->position.x > world_max.x || b->position.x < 0.0f)) {
+                    RemoveBullet(&bullet_array, i--);
                 }
             }
 
             f32    angle = Vector2Angle((Vector2){0.0f, -1.0f}, Vector2Subtract(mouse_pos, player.position));
             Matrix rot   = MatrixRotateZ(angle);
-            for (i32 i = 0; i < si_array_count(player.vertices); ++i) {
+            for (i32 i = 0; i < countof(player.vertices); ++i) {
                 player.vertices[i] = Vector2Transform(player_vert_ref[i], rot);
             }
 
             if (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(0)) {
-                PlaySound(sound);
+                SetSoundPitch(shoot_sound, GetRandomFloatRange(0.95f, 1.05f));
+                PlaySound(shoot_sound);
                 Vector2 direction = Vector2Normalize(Vector2Subtract(mouse_pos, player.position));
                 Vector2 pos       = Vector2Add(player.position, Vector2Scale(direction, player_height / 2.0f));
-                push_bullet(&bullet_array, (bullet_t){pos, pos, Vector2Scale(direction, 800.0f), GetTime()});
+                Bullet  bullet    = {pos, pos, Vector2Scale(direction, 900.0f), 8.0f, GetTime()};
+                PushBullet(&bullet_array, bullet);
             }
 
             Vector2 direction = {};
-            if (IsKeyDown(KEY_W)) direction = Vector2Add(direction, (Vector2){0.0f, -1.0f});
-            if (IsKeyDown(KEY_S)) direction = Vector2Add(direction, (Vector2){0.0f, 1.0f});
-            if (IsKeyDown(KEY_A)) direction = Vector2Add(direction, (Vector2){-1.0f, 0.0f});
-            if (IsKeyDown(KEY_D)) direction = Vector2Add(direction, (Vector2){1.0f, 0.0f});
-            direction         = Vector2Normalize(direction);
-            player.velocity   = Vector2Add(player.velocity, Vector2Scale(direction, 30.0f * dt));
-            f32 max_magnitude = 2.5f;
+            if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP)) direction = Vector2Add(direction, (Vector2){0.0f, -1.0f});
+            if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN)) direction = Vector2Add(direction, (Vector2){0.0f, 1.0f});
+            if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT)) direction = Vector2Add(direction, (Vector2){-1.0f, 0.0f});
+            if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT)) direction = Vector2Add(direction, (Vector2){1.0f, 0.0f});
+            direction       = Vector2Normalize(direction);
+            player.velocity = Vector2Add(player.velocity, Vector2Scale(direction, 30.0f * dt));
+
+            f32 max_magnitude = 400.0f * dt;
             if (Vector2Length(player.velocity) > max_magnitude) {
                 player.velocity = Vector2Scale(Vector2Normalize(player.velocity), max_magnitude);
             }
 
             player.position = Vector2Add(player.position, player.velocity);
-            player.velocity = Vector2Subtract(player.velocity, Vector2Scale(Vector2Normalize(player.velocity), 3.0f * dt));
+
+            f32 drag = expf(-3.00f * dt);
+            player.velocity.x *= drag;
+            player.velocity.y *= drag;
 
             for (i32 i = 0; i < bullet_array.count; ++i) {
-                bullet_t *b      = &bullet_array.bullets[i];
+                Bullet *b        = &bullet_array.elements[i];
                 b->prev_position = b->position;
                 b->position      = Vector2Add(b->position, Vector2Scale(b->velocity, dt));
             }
 
+            UpdateAsteroidPositions(&asteroid_array, 0, 0, world_max.x, world_max.y, dt);
+
             for (i32 i = 0; i < asteroid_array.count; ++i) {
-                asteroids[i].position.x += asteroids[i].velocity.x * dt;
-                asteroids[i].position.y += asteroids[i].velocity.y * dt;
 
-                if (asteroids[i].position.x > screen_width) {
-                    asteroids[i].position.x = 0;
-                } else if (asteroids[i].position.x < 0) {
-                    asteroids[i].position.x = screen_width;
-                }
-                if (asteroids[i].position.y > screen_height) {
-                    asteroids[i].position.y = 0;
-                } else if (asteroids[i].position.y < 0) {
-                    asteroids[i].position.y = screen_height;
-                }
-
-                Matrix mat = MatrixRotateZ(1.0f * dt);
-                for (i32 v = 0; v < si_array_count(asteroids[i].vertices); ++v) {
-                    asteroids[i].vertices[v] = Vector2Transform(asteroids[i].vertices[v], mat);
-                }
-                // DrawCircle(asteroid.position.x, asteroid.position.y, 8.0f, BLUE);
-
-                red_id = i;
-
-                for (i32 v = 0; v < si_array_count(asteroids[i].vertices); ++v) {
-                    i32 next = (v + 1) % si_array_count(asteroids[i].vertices);
-                    // Vector2 mpos  = Vector2Subtract(asteroids[i].position, mouse_pos);
-                    Vector2 mpos = mouse_pos;
-
+                for (i32 v = 0; v < countof(asteroids[i].vertices); ++v) {
+                    i32     next = (v + 1) % countof(asteroids[i].vertices);
                     Vector2 pos0 = Vector2Add(asteroids[i].vertices[v], asteroids[i].position);
                     Vector2 pos1 = Vector2Add(asteroids[i].vertices[next], asteroids[i].position);
 
-                    for (i32 pv = 0; pv < si_array_count(player.vertices); ++pv) {
-                        i32     pv_next = (pv + 1) % si_array_count(player.vertices);
-                        Vector2 vert0   = Vector2Add(player.vertices[pv], player.position);
-                        Vector2 vert1   = Vector2Add(player.vertices[pv_next], player.position);
-                        Vector2 collision;
-                        if (CheckCollisionLines(pos0, pos1, vert0, vert1, &collision)) {
-                            game_over = true;
-                            goto loop_break;
-                        }
+                    if (CheckCollionPlayerLine(&player, pos0, pos1)) {
+                        game_over = true;
+                        break;
                     }
 
-                    b32 hit    = false;
-                    f32 radius = 8.0f;
+                    b32 hit       = false;
+                    f32 radius    = 8.0f;
+                    i32 bullet_id = CheckCollisionBulletLine(&bullet_array, pos0, pos1);
 
-                    for (i32 b = 0; b < bullet_array.count; ++b) {
-                        bullet_t *bullet = &bullet_array.bullets[b];
-                        Vector2   collision;
+                    if (bullet_id >= 0) {
+                        SetSoundPitch(explosion_sound, GetRandomFloatRange(0.90f, 1.1f));
+                        PlaySound(explosion_sound);
 
-                        Vector2 delta  = Vector2Normalize(Vector2Subtract(bullet->position, bullet->prev_position));
-                        Vector2 newPos = Vector2Add(bullet->position, Vector2Scale(delta, radius));
+                        Vector2 position   = asteroids[i].position;
+                        Vector2 velocity   = asteroids[i].velocity;
+                        i32     generation = asteroids[i].generation;
 
-                        if (CheckCollisionLines(pos0, pos1, bullet->prev_position, newPos, &collision) ||
-                            CheckCollisionCircleLine(bullet->position, radius, pos0, pos1)) {
+                        RemoveAsteroid(&asteroid_array, i--);
+                        RemoveBullet(&bullet_array, bullet_id);
 
-                            hit = true;
+                        if (generation < 2) {
+                            f32     scale     = asteroid_scale / (2.0f * (generation + 1));
+                            Vector2 split_dir = Vector2Scale(Vector2Normalize(velocity), scale * 0.5f);
 
-                            Vector2 position = asteroids[i].position;
-                            Vector2 velocity = asteroids[i].velocity;
-                            b32     is_child = asteroids[i].child;
-                            remove_asteroid(&asteroid_array, i);
-                            --i;
-                            remove_bullet(&bullet_array, b);
+                            Vector2 p0 = Vector2Add(position, split_dir);
+                            Vector2 p1 = Vector2Add(position, Vector2Negate(split_dir));
 
-                            if (!is_child) {
-                                asteroid_t *a0 = push_asteroid(&asteroid_array, create_asteroid(asteroid_scale * 0.5f, velocity, true));
-                                asteroid_t *a1 =
-                                    push_asteroid(&asteroid_array, create_asteroid(asteroid_scale * 0.5f, Vector2Negate(velocity), true));
-
-                                a0->position = Vector2Add(position, Vector2Scale(Vector2Normalize(velocity), asteroid_scale * 0.5f));
-                                a1->position =
-                                    Vector2Add(position, Vector2Scale(Vector2Normalize(Vector2Negate(velocity)), asteroid_scale * 0.5f));
-                            }
-
-                            break;
+                            PushAsteroid(&asteroid_array, CreateAsteroid(p0, velocity, scale, generation + 1));
+                            PushAsteroid(&asteroid_array, CreateAsteroid(p1, Vector2Negate(velocity), scale, generation + 1));
                         }
+
+                        break;
                     }
-                    if (hit) break;
                 }
             }
         }
 
-    loop_break:
-
+        // UpdateCamera(&camera, CAMERA_ORTHOGRAPHIC);
         BeginDrawing();
+        BeginMode2D(camera);
         ClearBackground(clear_color);
 
-        Vector2 offset0 = {0.0f, screen_height};
-        Vector2 offset1 = {screen_width, 0.0f};
         for (i32 i = 0; i < asteroid_array.count; ++i) {
-            for (i32 r = -1; r < 2; ++r) {
-                Vector2 off = Vector2Scale(offset0, (f32)r);
-                for (i32 v = 0; v < si_array_count(asteroids[i].vertices); ++v) {
-                    i32     next     = (v + 1) % si_array_count(asteroids[i].vertices);
-                    Vector2 position = Vector2Add(asteroids[i].position, off);
-                    Vector2 pos0     = Vector2Add(asteroids[i].vertices[v], position);
-                    Vector2 pos1     = Vector2Add(asteroids[i].vertices[next], position);
-                    DrawLineEx(pos0, pos1, 2.0f, WHITE);
-                }
-            }
-            for (i32 r = -1; r < 2; ++r) {
-                if (r == 0) continue;
-                Vector2 off = Vector2Scale(offset1, (f32)r);
-                for (i32 v = 0; v < si_array_count(asteroids[i].vertices); ++v) {
-                    i32     next     = (v + 1) % si_array_count(asteroids[i].vertices);
-                    Vector2 position = Vector2Add(asteroids[i].position, off);
-                    Vector2 pos0     = Vector2Add(asteroids[i].vertices[v], position);
-                    Vector2 pos1     = Vector2Add(asteroids[i].vertices[next], position);
-                    DrawLineEx(pos0, pos1, 2.0f, WHITE);
-                }
+            for (i32 v = 0; v < countof(asteroids[i].vertices); ++v) {
+                i32     next = (v + 1) % countof(asteroids[i].vertices);
+                Vector2 pos0 = Vector2Add(asteroids[i].vertices[v], asteroids[i].position);
+                Vector2 pos1 = Vector2Add(asteroids[i].vertices[next], asteroids[i].position);
+                DrawLineEx(pos0, pos1, 2.0f, WHITE);
             }
         }
 
         for (i32 i = 0; i < bullet_array.count; ++i) {
-            bullet_t *b = &bullet_array.bullets[i];
-            DrawCircle(b->position.x, b->position.y, 8.0f, RED);
+            Vector2 pos = bullet_array.elements[i].position;
+            DrawCircle(pos.x, pos.y, 8.0f, YELLOW);
         }
 
-        for (i32 i = 0; i < si_array_count(player.vertices); ++i) {
-            i32     next = (i + 1) % si_array_count(player.vertices);
+        for (i32 i = 0; i < countof(player.vertices); ++i) {
+            i32     next = (i + 1) % countof(player.vertices);
             Vector2 pos0 = Vector2Add(player.vertices[i], player.position);
             Vector2 pos1 = Vector2Add(player.vertices[next], player.position);
-            DrawLineEx(pos0, pos1, 2.0f, BLUE);
+            DrawLineEx(pos0, pos1, 2.0f, ORANGE);
         }
 
-        // DrawText(TextFormat("Bullet Count: %d\n", bullet_array.count), 10, 40, 20, WHITE);
-        // DrawText(TextFormat("Verts :  %f, %f\n", player.vertices[0].x, player.vertices[0].y), 10, 40 * 2, 20, WHITE);
+        EndMode2D();
 
         if (game_over) {
-            DrawRectangleRounded(
-                (Rectangle){screen_width / 2.0f - 128.0f, screen_height / 2.0f - 64.0f, 256.0f, 128.0f}, 0.3f, 6, Fade(DARKGRAY, 0.5f));
-            i32 w = MeasureText("GAME OVER", 32);
-            DrawText("GAME OVER", screen_width / 2.0f - w / 2.0f, screen_height / 2.0f - 32 / 2.0f, 32, RED);
+            Rectangle rect = {screen_width / 2.0f - 128.0f, screen_height / 2.0f - 64.0f, 256.0f, 128.0f};
+            DrawRectangleRounded(rect, 0.3f, 6, Fade(DARKGRAY, 0.5f));
+
+            const char *game_over_str = "GAME OVER";
+
+            i32 font_size  = 32;
+            i32 text_width = MeasureText(game_over_str, font_size);
+            DrawText(game_over_str, screen_width / 2.0f - text_width / 2.0f, screen_height / 2.0f - font_size / 2.0f, font_size, RED);
         }
 
-        // DrawFPS(10, 10);
+        DrawFPS(10, 10);
         EndDrawing();
     }
 
-    si_free(&primary_buffer);
-
-    UnloadSound(sound);
+    UnloadSound(shoot_sound);
+    UnloadSound(explosion_sound);
     CloseAudioDevice();
     CloseWindow();
 }
