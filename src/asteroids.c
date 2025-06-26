@@ -71,7 +71,7 @@ typedef struct BulletBuffer {
 typedef struct AsteroidBuffer {
     i32      capacity;
     i32      count;
-    Asteroid elements[64];
+    Asteroid elements[128];
 } AsteroidBuffer;
 
 typedef struct GameState {
@@ -373,6 +373,23 @@ void Update(GameState *state)
     }
 
     state->player.position = Vector2Add(state->player.position, state->player.velocity);
+
+    f32 min_x = state->world_min.x - state->player.height;
+    f32 max_x = state->world_max.x + state->player.height;
+    f32 min_y = state->world_min.y - state->player.height;
+    f32 max_y = state->world_max.y + state->player.height;
+
+    if (state->player.position.x > max_x) {
+        state->player.position.x -= max_x + state->player.height;
+    } else if (state->player.position.x < min_x) {
+        state->player.position.x += max_x + state->player.height;
+    }
+
+    if (state->player.position.y > max_y) {
+        state->player.position.y -= max_y + state->player.height;
+    } else if (state->player.position.y < min_y) {
+        state->player.position.y += max_y + state->player.height;
+    }
 
     f32 drag = expf(-3.00f * dt);
     state->player.velocity.x *= drag;
