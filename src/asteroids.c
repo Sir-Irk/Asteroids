@@ -230,8 +230,7 @@ Asteroid CreateAsteroid(Vector2 position, Vector2 velocity, f32 scale, i32 gener
         f32 y     = sinf(angle);
         f32 s     = scale * GetRandomFloatRange(0.5f, 1.0f);
 
-        Vector2 vertex       = Vector2Scale(Vector2Normalize((Vector2){x, y}), s);
-        asteroid.vertices[i] = vertex;
+        asteroid.vertices[i] = Vector2Scale(Vector2Normalize((Vector2){x, y}), s);
     }
 
     asteroid.position         = position;
