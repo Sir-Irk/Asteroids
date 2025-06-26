@@ -3,5 +3,5 @@ flags="-ffast-math -flto"
 asm="-S -masm=intel"
 #flags=""
 echo "Building..."
-clang -O3 -g $1 -pthread -lraylib -lGL -lm -o build/$2  $flags $warnings -march=native -mtune=native
+clang -O3 -g $1 -lraylib -lm -o build/$2  $flags $warnings -march=native e
 #clang $asm -O3 $1 $flags $warnings -march=native -mtune=native
