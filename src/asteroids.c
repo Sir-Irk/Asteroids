@@ -512,15 +512,13 @@ void UpdateAndDraw()
 int main(void)
 {
     SetConfigFlags(FLAG_MSAA_4X_HINT);
-    InitWindow(2560, 1440, "Asteroids");
+    InitWindow(1920, 1080, "Asteroids");
     InitAudioDevice();
     SetRandomSeed(time(NULL));
 
     // NOTE: We use global state so that we can use "emscripten_set_main_loop" because
     //       using the "ASYNCIFY" flag with WindowShouldClose() has a significant performance penalty
     InitializeGame(&global_state);
-
-    ToggleBorderlessWindowed();
 
 #if defined(PLATFORM_WEB)
     emscripten_set_main_loop(UpdateAndDraw, GetMonitorRefreshRate(GetCurrentMonitor()), 1);
