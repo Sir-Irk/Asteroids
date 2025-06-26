@@ -3,7 +3,6 @@
 #include <pthread.h>
 #include <raylib.h>
 #include <raymath.h>
-#include <stdio.h>
 #include <string.h>
 
 #include <math.h>
@@ -310,11 +309,9 @@ void InitializeGame(GameState *state)
 
     for (i32 i = 0; i < 16; ++i) {
         Vector2 screen_center = (Vector2){(f32)state->world_max.x / 2, (f32)state->world_max.y / 2};
-        Vector2 position      = Vector2Add(
-            screen_center, GetRandomVector2UnitCircle(GetRandomFloatRange(state->world_max.y / 3.0f, state->world_max.y / 1.5f)));
-        // Vector2 position = GetRandomVector2UnitCircle(GetRandomFloatRange(state->world_max.y / 32.0f, state->world_max.y / 2.0f));
-        printf("%f, %f\n", position.x, position.y);
-        Vector2 velocity = GetRandomVector2UnitCircle(GetRandomFloatRange(50.0f, 250.0f));
+        Vector2 random_dir    = GetRandomVector2UnitCircle(GetRandomFloatRange(state->world_max.y / 3.0f, state->world_max.y / 1.5f));
+        Vector2 position      = Vector2Add(screen_center, random_dir);
+        Vector2 velocity      = GetRandomVector2UnitCircle(GetRandomFloatRange(50.0f, 250.0f));
         PushAsteroid(&state->asteroid_buffer, CreateAsteroid(position, velocity, state->asteroid_scale, 0));
     }
 }
