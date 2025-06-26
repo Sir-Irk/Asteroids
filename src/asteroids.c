@@ -197,12 +197,12 @@ void UpdateAsteroidPositions(AsteroidBuffer *asteroid_buffer, f32 min_x, f32 min
         i32 max_x_off = max_x + scale;
         i32 min_x_off = min_x - scale;
         i32 max_y_off = max_y + scale;
-        i32 min_y_off = max_y - scale;
+        i32 min_y_off = min_y - scale;
 
         if (a->position.x > max_x_off) {
-            a->position.x -= max_x_off + scale;
+            a->position.x -= max_x_off + scale - 0.1f;
         } else if (a->position.x < min_x_off) {
-            a->position.x += max_x_off + scale;
+            a->position.x += max_x_off + scale - 0.1f;
         }
 
         if (a->position.y > max_y_off) {
@@ -341,7 +341,6 @@ void Update(GameState *state)
     }
 
     UpdateBulletLives(&state->bullet_buffer, state->world_min, state->world_max);
-    UpdateAsteroidPositions(&state->asteroid_buffer, 0, 0, state->world_max.x, state->world_max.y, dt);
 
     f32    angle = Vector2Angle((Vector2){0.0f, -1.0f}, Vector2Subtract(mouse_pos, state->player.position));
     Matrix rot   = MatrixRotateZ(angle);
@@ -400,6 +399,8 @@ void Update(GameState *state)
         b->position      = Vector2Add(b->position, Vector2Scale(b->velocity, dt));
     }
 
+    UpdateAsteroidPositions(&state->asteroid_buffer, 0, 0, state->world_max.x, state->world_max.y, dt);
+
     //============ Player/Asteroid and Bullet/Asteroid collision checks ===============
     Asteroid *asteroids = state->asteroid_buffer.elements;
     for (i32 i = 0; i < state->asteroid_buffer.count; ++i) {
@@ -448,8 +449,8 @@ void Update(GameState *state)
 void Draw(GameState *state)
 {
     BeginDrawing();
-    BeginMode2D(state->camera);
     ClearBackground(BLACK);
+    BeginMode2D(state->camera);
 
     Asteroid *asteroids = state->asteroid_buffer.elements;
     for (i32 i = 0; i < state->asteroid_buffer.count; ++i) {
@@ -512,7 +513,6 @@ void UpdateAndDraw()
 int main(void)
 {
     SetConfigFlags(FLAG_MSAA_4X_HINT);
-    SetConfigFlags(FLAG_VSYNC_HINT);
     InitWindow(1920, 1080, "Asteroids");
     InitAudioDevice();
 
