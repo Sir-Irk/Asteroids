@@ -16,12 +16,20 @@
 #include <sys/mman.h>
 #endif
 
+#define si_swap(a, b, type)                                                                                                                \
+    do {                                                                                                                                   \
+        type tmp = (a);                                                                                                                    \
+        (a)      = (b);                                                                                                                    \
+        (b)      = (tmp);                                                                                                                  \
+    } while (0)
+
 typedef ptrdiff_t si_size;
 
 typedef struct si_primary_buffer
 {
     si_size size;
     void   *data;
+    int     is_stack_buffer;
 } si_primary_buffer;
 
 typedef struct si_memory_arena
@@ -59,10 +67,15 @@ si__push_size(si_memory_arena *arena, si_size size, int clear);
 
 static si_temp_memory
 si_start_temp_memory(si_memory_arena *arena);
+
 static void
 si_pop_temp_memory(si_temp_memory temp);
+
 static void
 si_pop_and_clear_temp_memory(si_temp_memory temp);
+
+static si_primary_buffer
+si_primary_buffer_stack(size_t sizeInBytes, void *buffer);
 
 #define si_array_count(a) (sizeof(a) / sizeof(a[0]))
 
@@ -87,6 +100,7 @@ si_free(si_primary_buffer *buffer)
 {
     assert(buffer);
     assert(buffer->data);
+    if (buffer->is_stack_buffer) return;
     // NOTE: requires windows.h
     VirtualFree(buffer->data, 0, MEM_RELEASE);
     // free(buffer);
@@ -94,8 +108,21 @@ si_free(si_primary_buffer *buffer)
 #else
 
 static si_primary_buffer
+si_primary_buffer_stack(size_t sizeInBytes, void *buffer)
+{
+    assert(buffer);
+    assert(sizeInBytes > 0);
+    si_primary_buffer result = {};
+    result.data              = buffer;
+    result.size              = sizeInBytes;
+    result.is_stack_buffer   = 1;
+    return result;
+}
+
+static si_primary_buffer
 si_allocate_primary_buffer(size_t sizeInBytes, void *baseAddress)
 {
+    assert(sizeInBytes > 0);
     si_primary_buffer result = {};
     result.data              = mmap(baseAddress, sizeInBytes, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
     assert(result.data);
@@ -108,6 +135,8 @@ si_free(si_primary_buffer *buffer)
 {
     assert(buffer);
     assert(buffer->data);
+    if (buffer->is_stack_buffer) return;
+
     munmap(buffer->data, buffer->size);
     memset(buffer, 0, sizeof(*buffer));
 }
