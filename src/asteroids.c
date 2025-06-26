@@ -239,25 +239,25 @@ Asteroid CreateAsteroid(Vector2 position, Vector2 velocity, f32 scale, i32 gener
     return asteroid;
 }
 
-void ExplodeAsteroid(GameState *state, i32 asteroid_id)
+void ExplodeAsteroid(AsteroidBuffer *asteroids, i32 asteroid_id)
 {
-    Asteroid *asteroid = &state->asteroid_buffer.elements[asteroid_id];
+    Asteroid *a = &asteroids->elements[asteroid_id];
 
-    Vector2 position   = asteroid->position;
-    Vector2 velocity   = asteroid->velocity;
-    i32     generation = asteroid->generation;
+    Vector2 position   = a->position;
+    Vector2 velocity   = a->velocity;
+    i32     generation = a->generation;
 
-    RemoveAsteroid(&state->asteroid_buffer, asteroid_id);
+    RemoveAsteroid(asteroids, asteroid_id);
 
     if (generation < 2) {
-        f32     scale     = state->asteroid_buffer.asteroid_max_scale / (2.0f * (generation + 1));
+        f32     scale     = asteroids->asteroid_max_scale / (2.0f * (generation + 1));
         Vector2 split_dir = Vector2Scale(Vector2Normalize(velocity), scale * 0.5f);
 
         Vector2 p0 = Vector2Add(position, split_dir);
         Vector2 p1 = Vector2Add(position, Vector2Negate(split_dir));
 
-        PushAsteroid(&state->asteroid_buffer, CreateAsteroid(p0, velocity, scale, generation + 1));
-        PushAsteroid(&state->asteroid_buffer, CreateAsteroid(p1, Vector2Negate(velocity), scale, generation + 1));
+        PushAsteroid(asteroids, CreateAsteroid(p0, velocity, scale, generation + 1));
+        PushAsteroid(asteroids, CreateAsteroid(p1, Vector2Negate(velocity), scale, generation + 1));
     }
 }
 
@@ -438,7 +438,7 @@ void Update(GameState *state)
             if (bullet_id >= 0) {
                 SetSoundPitch(state->explosion_sound, GetRandomFloatRange(0.90f, 1.1f));
                 PlaySound(state->explosion_sound);
-                ExplodeAsteroid(state, i--);
+                ExplodeAsteroid(&state->asteroid_buffer, i--);
                 RemoveBullet(&state->bullet_buffer, bullet_id);
                 break;
             }
