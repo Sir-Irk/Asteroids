@@ -2,6 +2,7 @@ raylib.h
 raymath.h
 textures/
 build/
+build.sh
 gf2
 log.txt
 push.sh
