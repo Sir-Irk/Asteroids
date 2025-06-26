@@ -497,7 +497,6 @@ void Draw(GameState *state)
 
         x = state->screen_width / 2.0f - text_width / 2.0f;
         DrawText(start_over_str, x, y + font_size * 4, font_size, WHITE);
-    } else if (state->game_won) {
     }
 
     DrawFPS(10, 10);
