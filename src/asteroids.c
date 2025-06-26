@@ -71,6 +71,7 @@ typedef struct BulletBuffer {
 typedef struct AsteroidBuffer {
     i32      capacity;
     i32      count;
+    f32      asteroid_max_scale;
     Asteroid elements[128];
 } AsteroidBuffer;
 
@@ -94,8 +95,6 @@ typedef struct GameState {
     Sound explosion_sound;
     Sound win_sound;
     Sound lose_sound;
-
-    f32 asteroid_scale;
 } GameState;
 
 GameState global_state = {};
@@ -175,7 +174,7 @@ i32 CheckCollisionBulletLine(BulletBuffer *bullets, Vector2 p0, Vector2 p1)
         Bullet *bullet = &bullets->elements[b];
 
         Vector2 delta   = Vector2Normalize(Vector2Subtract(bullet->position, bullet->prev_position));
-        Vector2 new_pos = Vector2Add(bullet->position, Vector2Scale(delta, bullet->radius));
+        Vector2 new_pos = Vector2Add(bullet->position, Vector2Scale(delta, bullet->radius * 0.5f));
 
         Vector2 collision;
         if (CheckCollisionLines(p0, p1, bullet->prev_position, new_pos, &collision) ||
@@ -193,16 +192,16 @@ void UpdateAsteroidPositions(AsteroidBuffer *asteroid_buffer, f32 min_x, f32 min
         a->position.x += a->velocity.x * dt;
         a->position.y += a->velocity.y * dt;
 
-        f32 scale     = global_state.asteroid_scale / (1.0f + a->generation);
+        f32 scale     = asteroid_buffer->asteroid_max_scale / (1.0f + a->generation);
         i32 max_x_off = max_x + scale;
         i32 min_x_off = min_x - scale;
         i32 max_y_off = max_y + scale;
         i32 min_y_off = min_y - scale;
 
         if (a->position.x > max_x_off) {
-            a->position.x -= max_x_off + scale - 0.1f;
+            a->position.x -= max_x_off + scale;
         } else if (a->position.x < min_x_off) {
-            a->position.x += max_x_off + scale - 0.1f;
+            a->position.x += max_x_off + scale;
         }
 
         if (a->position.y > max_y_off) {
@@ -241,6 +240,28 @@ Asteroid CreateAsteroid(Vector2 position, Vector2 velocity, f32 scale, i32 gener
     asteroid.angular_velocity = GetRandomFloatRange(-2.0f, 2.0f);
 
     return asteroid;
+}
+
+void ExplodeAsteroid(GameState *state, i32 asteroid_id)
+{
+    Asteroid *asteroid = &state->asteroid_buffer.elements[asteroid_id];
+
+    Vector2 position   = asteroid->position;
+    Vector2 velocity   = asteroid->velocity;
+    i32     generation = asteroid->generation;
+
+    RemoveAsteroid(&state->asteroid_buffer, asteroid_id);
+
+    if (generation < 2) {
+        f32     scale     = state->asteroid_buffer.asteroid_max_scale / (2.0f * (generation + 1));
+        Vector2 split_dir = Vector2Scale(Vector2Normalize(velocity), scale * 0.5f);
+
+        Vector2 p0 = Vector2Add(position, split_dir);
+        Vector2 p1 = Vector2Add(position, Vector2Negate(split_dir));
+
+        PushAsteroid(&state->asteroid_buffer, CreateAsteroid(p0, velocity, scale, generation + 1));
+        PushAsteroid(&state->asteroid_buffer, CreateAsteroid(p1, Vector2Negate(velocity), scale, generation + 1));
+    }
 }
 
 void UpdateBulletLives(BulletBuffer *bullets, Vector2 world_min, Vector2 world_max)
@@ -293,11 +314,11 @@ void InitializeGame(GameState *state)
     // NOTE: assumes aspect ratio will not change
     state->camera.zoom = screen_width / 2560.0f;
 
-    state->asteroid_scale  = 128.0f;
     state->asteroid_buffer = (AsteroidBuffer){
-        .count    = 0,
-        .elements = {0},
-        .capacity = countof(state->asteroid_buffer.elements),
+        .count              = 0,
+        .elements           = {0},
+        .capacity           = countof(state->asteroid_buffer.elements),
+        .asteroid_max_scale = 128.0f,
     };
 
     state->bullet_buffer = (BulletBuffer){
@@ -311,7 +332,7 @@ void InitializeGame(GameState *state)
         Vector2 random_dir    = GetRandomVector2UnitCircle(GetRandomFloatRange(state->world_max.y / 3.0f, state->world_max.y / 1.5f));
         Vector2 position      = Vector2Add(screen_center, random_dir);
         Vector2 velocity      = GetRandomVector2UnitCircle(GetRandomFloatRange(50.0f, 250.0f));
-        PushAsteroid(&state->asteroid_buffer, CreateAsteroid(position, velocity, state->asteroid_scale, 0));
+        PushAsteroid(&state->asteroid_buffer, CreateAsteroid(position, velocity, state->asteroid_buffer.asteroid_max_scale, 0));
     }
 }
 
@@ -421,25 +442,8 @@ void Update(GameState *state)
             if (bullet_id >= 0) {
                 SetSoundPitch(state->explosion_sound, GetRandomFloatRange(0.90f, 1.1f));
                 PlaySound(state->explosion_sound);
-
-                Vector2 position   = asteroids[i].position;
-                Vector2 velocity   = asteroids[i].velocity;
-                i32     generation = asteroids[i].generation;
-
-                RemoveAsteroid(&state->asteroid_buffer, i--);
+                ExplodeAsteroid(state, i--);
                 RemoveBullet(&state->bullet_buffer, bullet_id);
-
-                if (generation < 2) {
-                    f32     scale     = state->asteroid_scale / (2.0f * (generation + 1));
-                    Vector2 split_dir = Vector2Scale(Vector2Normalize(velocity), scale * 0.5f);
-
-                    Vector2 p0 = Vector2Add(position, split_dir);
-                    Vector2 p1 = Vector2Add(position, Vector2Negate(split_dir));
-
-                    PushAsteroid(&state->asteroid_buffer, CreateAsteroid(p0, velocity, scale, generation + 1));
-                    PushAsteroid(&state->asteroid_buffer, CreateAsteroid(p1, Vector2Negate(velocity), scale, generation + 1));
-                }
-
                 break;
             }
         }
