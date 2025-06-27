@@ -1,3 +1,9 @@
+/**************************************************************************
+    Asteroids written by Jeremy Montgomery(sir-irk)
+
+    Using Raylib 5.x by Ramon Santamaria (@raysan5)
+***************************************************************************/
+
 #include <assert.h>
 #include <limits.h>
 #include <pthread.h>
