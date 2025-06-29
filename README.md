@@ -11,7 +11,7 @@ clang src/asteroids.c -o asteroids -lraylib -lm
 
 The `emcc` command I used for the itch.io page
 ```
-emcc -g -o game.html src/asteroids.c -Os -Wall web/libraylib.a -I. -Isrc/ -L. -Lweb/  -s USE_GLFW=3 -s --shell-file minshell.html -DPLATFORM_WEB --preload-file sounds -sASSERTIONS -s 'EXPORTED_RUNTIME_METHODS=["HEAPF32"]'
+emcc -g -o index.html src/asteroids.c -Os -Wall web/libraylib.a -I. -Isrc/ -L. -Lweb/  -s USE_GLFW=3 -s --shell-file minshell.html -DPLATFORM_WEB --preload-file sounds --preload-file shaders -sASSERTIONS -s 'EXPORTED_RUNTIME_METHODS=["HEAPF32"]' -sFULL_ES3=1   
 ```
 Note: to work on itch.io, you need to rename `game.html` to `index.html` and then make a zip containing `index.html`, `game.wasm`, `game.data`, `game.js` and upload the `.zip` to itch.io
 
