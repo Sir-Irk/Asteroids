@@ -255,10 +255,12 @@ static void InitializeGame(GameState *state)
     state->screen_height = GetScreenHeight();
 
     if (!state->resources_loaded) {
-        state->shoot_sound     = LoadSound("sounds/shoot.wav");
-        state->explosion_sound = LoadSound("sounds/explosion.wav");
-        state->win_sound       = LoadSound("sounds/win.wav");
-        state->lose_sound      = LoadSound("sounds/lose.wav");
+        state->sounds[SOUND_SHOOT]            = LoadSound("sounds/shoot.wav");
+        state->sounds[SOUND_EXPLOSION]        = LoadSound("sounds/explosion.wav");
+        state->sounds[SOUND_WIN]              = LoadSound("sounds/win.wav");
+        state->sounds[SOUND_LOSE]             = LoadSound("sounds/lose.wav");
+        state->sounds[SOUND_POWER_UP_SPAWNED] = LoadSound("sounds/power_up_spawned.wav");
+        state->sounds[SOUND_POWER_UP_GAINED]  = LoadSound("sounds/power_up_gained.wav");
 
         InitializeBloomEffect(&state->bloom, state->screen_width, state->screen_height);
 
@@ -266,7 +268,7 @@ static void InitializeGame(GameState *state)
         state->resources_loaded = true;
     }
 
-    SetSoundVolume(state->explosion_sound, 0.5f);
+    SetSoundVolume(state->sounds[SOUND_EXPLOSION], 0.5f);
     f32 player_width  = 48.0f;
     f32 player_height = 64.0f;
 
@@ -339,7 +341,7 @@ static void Update(GameState *state)
 
     if (state->asteroid_buffer.count == 0) {
         state->game_won = true;
-        PlaySound(state->win_sound);
+        PlaySound(state->sounds[SOUND_WIN]);
         return;
     }
 
@@ -353,6 +355,7 @@ static void Update(GameState *state)
         if (Vector2Distance(p->position, state->player.position) <= POWER_UP_RADIUS) {
             state->player.power_up_flags |= 1 << p->type;
             state->player.power_up_timestamps[p->type] = GetTime();
+            PlaySound(state->sounds[SOUND_POWER_UP_GAINED]);
             RemovePowerUp(&state->power_up_buffer, i--);
         }
     }
@@ -381,8 +384,8 @@ static void Update(GameState *state)
             ((state->player.power_up_flags >> POWER_UP_TYPE_MACHINE_GUN) & 1) ? (PLAYER_SHOOTING_RATE * 0.5f) : PLAYER_SHOOTING_RATE;
 
         if (GetTime() - state->player.shooting_timestamp >= shooting_rate) {
-            SetSoundPitch(state->shoot_sound, GetRandomFloatRange(0.95f, 1.05f));
-            PlaySound(state->shoot_sound);
+            SetSoundPitch(state->sounds[SOUND_SHOOT], GetRandomFloatRange(0.95f, 1.05f));
+            PlaySound(state->sounds[SOUND_SHOOT]);
             Vector2 direction = Vector2Normalize(Vector2Subtract(mouse_pos, state->player.position));
             Vector2 pos       = Vector2Add(state->player.position, Vector2Scale(direction, state->player.height / 2.0f));
 
@@ -467,19 +470,26 @@ static void Update(GameState *state)
             Vector2 pos0 = Vector2Add(asteroids[i].vertices[v], asteroids[i].position);
             Vector2 pos1 = Vector2Add(asteroids[i].vertices[next], asteroids[i].position);
 
-            if (((state->player.power_up_flags >> POWER_UP_TYPE_INVINCIBILITY) & 1) == 0) {
-                if (CheckCollionPlayerLine(&state->player, pos0, pos1)) {
-                    state->game_over = true;
-                    PlaySound(state->lose_sound);
-                    break;
+            if ((state->player.power_up_flags >> POWER_UP_TYPE_INVINCIBILITY) & 1) {
+                // if (true) {
+                if (CheckCollisionCircleLine(state->player.position, state->player.height - 16, pos0, pos1)) {
+                    Vector2 tangent = Vector2Subtract(pos1, pos0);
+                    Vector3 normal =
+                        Vector3Normalize(Vector3CrossProduct((Vector3){0.0f, 0.0f, -1.0f}, (Vector3){tangent.x, tangent.y, 0.0f}));
+                    // state->player.velocity = Vector2Reflect(state->player.velocity, (Vector2){normal.x, normal.y});
+                    state->player.velocity = Vector2Scale((Vector2){normal.x, normal.y}, Vector2Length(state->player.velocity));
                 }
+            } else if (CheckCollionPlayerLine(&state->player, pos0, pos1)) {
+                state->game_over = true;
+                PlaySound(state->sounds[SOUND_LOSE]);
+                break;
             }
 
             i32 bullet_id = CheckCollisionBulletLine(&state->bullet_buffer, pos0, pos1);
 
             if (bullet_id >= 0) {
-                SetSoundPitch(state->explosion_sound, GetRandomFloatRange(0.90f, 1.1f));
-                PlaySound(state->explosion_sound);
+                SetSoundPitch(state->sounds[SOUND_EXPLOSION], GetRandomFloatRange(0.90f, 1.1f));
+                PlaySound(state->sounds[SOUND_EXPLOSION]);
 
                 state->player.score += POINTS_PER_ASTEROID / (asteroids[i].generation + 1);
 
@@ -487,6 +497,7 @@ static void Update(GameState *state)
                 b32 dice_roll    = GetRandomValue(0, 10) == 0;
                 if (current_time - state->power_up_spawn_timestamp >= state->power_up_spawn_delay && dice_roll) {
                     PushPowerUp(&state->power_up_buffer, CreateRandomPowerUp(asteroids[i].position));
+                    PlaySound(state->sounds[SOUND_POWER_UP_SPAWNED]);
                     state->power_up_spawn_delay     = GetRandomFloatRange(POWER_UP_MIN_SPAWN_RATE, POWER_UP_MAX_SPAWN_RATE);
                     state->power_up_spawn_timestamp = current_time;
                 }
@@ -646,10 +657,9 @@ int main(void)
     }
 #endif
 
-    UnloadSound(global_state.shoot_sound);
-    UnloadSound(global_state.explosion_sound);
-    UnloadSound(global_state.win_sound);
-    UnloadSound(global_state.lose_sound);
+    for (i32 i = 0; i < countof(global_state.sounds); ++i) {
+        UnloadSound(global_state.sounds[i]);
+    }
 
     UnloadRenderTexture(global_state.render_target);
     UnloadBloomEffect(&global_state.bloom);

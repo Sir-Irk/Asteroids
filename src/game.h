@@ -1,6 +1,16 @@
 #include "asteroids.h"
 #include "bloom.h"
 
+typedef enum SoundNames {
+    SOUND_SHOOT,
+    SOUND_EXPLOSION,
+    SOUND_WIN,
+    SOUND_LOSE,
+    SOUND_POWER_UP_SPAWNED,
+    SOUND_POWER_UP_GAINED,
+    SOUND_COUNT,
+} SoundNames;
+
 typedef struct GameState {
     b32 resources_loaded;
     b32 game_over;
@@ -24,10 +34,7 @@ typedef struct GameState {
     RenderTexture2D   render_target;
     BloomScreenEffect bloom;
 
-    Sound shoot_sound;
-    Sound explosion_sound;
-    Sound win_sound;
-    Sound lose_sound;
+    Sound sounds[SOUND_COUNT];
 
     b32 show_fps;
 } GameState;
