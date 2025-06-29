@@ -20,8 +20,8 @@ void main()
     vec3 blurColor3 = texture(bloomTexture3, fragTexCoord).rgb;
     vec3 blurColor4 = texture(bloomTexture4, fragTexCoord).rgb;
 
-    vec3 sharpColor = (blurColor1 * 1.0 + blurColor2) * 0.75;
-    vec3 blurryColor = (blurColor3 + blurColor4 * 1.4) * 0.6;
+    vec3 sharpColor = (blurColor1 + blurColor2) * 0.7;
+    vec3 blurryColor = (blurColor3 + blurColor4) * 0.7;
     hdrColor += sharpColor + blurryColor;
 
     // Basic tonemapping

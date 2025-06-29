@@ -27,8 +27,8 @@ typedef struct Player {
     Vector2 velocity;
     f32     rotation;
     f32     height;
-    f32     shootingRateSeconds;
-    f32     shootingTimestamp;
+    f32     shooting_rate;
+    f32     shooting_timestamp;
     Vector2 vertices[4];
     Vector2 reference_vertices[4];
 } Player;

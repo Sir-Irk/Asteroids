@@ -220,7 +220,7 @@ void InitializeGame(GameState *state)
         state->resources_loaded = true;
     }
 
-    SetSoundVolume(state->explosion_sound, 0.7f);
+    SetSoundVolume(state->explosion_sound, 0.5f);
     f32 player_width  = 48.0f;
     f32 player_height = 64.0f;
 
@@ -233,9 +233,9 @@ void InitializeGame(GameState *state)
     state->player.reference_vertices[3] = (Vector2){-player_width / 2.0f, player_height / 2.0f};
     memcpy(state->player.vertices, state->player.reference_vertices, sizeof(state->player.vertices));
 
-    state->player.position            = (Vector2){state->world_max.x / 2.0f, state->world_max.y / 2.0f};
-    state->player.shootingRateSeconds = 0.1f;
-    state->player.shootingTimestamp   = GetTime();
+    state->player.position           = (Vector2){state->world_max.x / 2.0f, state->world_max.y / 2.0f};
+    state->player.shooting_rate      = 0.25f;
+    state->player.shooting_timestamp = GetTime();
 
     // NOTE: assumes aspect ratio will not change
     state->camera.zoom = state->screen_width / 2560.0f;
@@ -296,14 +296,14 @@ void Update(GameState *state)
     }
 
     if (IsKeyDown(KEY_SPACE) || IsMouseButtonDown(0)) {
-        if (GetTime() - state->player.shootingTimestamp >= state->player.shootingRateSeconds) {
+        if (GetTime() - state->player.shooting_timestamp >= state->player.shooting_rate) {
             SetSoundPitch(state->shoot_sound, GetRandomFloatRange(0.95f, 1.05f));
             PlaySound(state->shoot_sound);
             Vector2 direction = Vector2Normalize(Vector2Subtract(mouse_pos, state->player.position));
             Vector2 pos       = Vector2Add(state->player.position, Vector2Scale(direction, state->player.height / 2.0f));
             Bullet  bullet    = {pos, pos, Vector2Scale(direction, 900.0f), 10.0f};
             PushBullet(&state->bullet_buffer, bullet);
-            state->player.shootingTimestamp = GetTime();
+            state->player.shooting_timestamp = GetTime();
         }
     }
 
@@ -461,8 +461,8 @@ int main(void)
 #if defined(PLATFORM_WEB)
     emscripten_set_main_loop(UpdateAndDraw, GetMonitorRefreshRate(GetCurrentMonitor()), 1);
 #else
-    SetTargetFPS(GetMonitorRefreshRate(GetCurrentMonitor()));
-    // SetTargetFPS(0);
+    // SetTargetFPS(GetMonitorRefreshRate(GetCurrentMonitor()));
+    SetTargetFPS(0);
     while (!WindowShouldClose()) {
         UpdateAndDraw();
     }

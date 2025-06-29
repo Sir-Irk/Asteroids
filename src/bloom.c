@@ -15,12 +15,13 @@ static void InitializeBloomEffect(BloomScreenEffect *bloom, i32 start_width, i32
     bloom->bloom_shader = LoadShader(0, "shaders/bloom_advanced.frag");
 #endif
 
+    i32 width  = start_width;
+    i32 height = start_height;
     for (i32 i = 0; i < countof(bloom->ping_pong_buffers); ++i) {
-        i32 div = 2 * (i);
-        if (i == 0) div = 1;
-
-        bloom->ping_pong_buffers[i][0] = LoadRenderTexture(start_width / div, start_height / div);
-        bloom->ping_pong_buffers[i][1] = LoadRenderTexture(start_width / div, start_height / div);
+        bloom->ping_pong_buffers[i][0] = LoadRenderTexture(width, height);
+        bloom->ping_pong_buffers[i][1] = LoadRenderTexture(width, height);
+        width /= 2;
+        height /= 2;
     }
 
     bloom->texture_locations[0] = GetShaderLocation(bloom->bloom_shader, "bloomTexture1");
