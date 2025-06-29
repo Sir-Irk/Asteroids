@@ -92,21 +92,4 @@ static void RenderBloomTextures(GameState *state)
             DrawFramebuffer(*buf1, *buf0, i == 0);
         }
     }
-
-    //==== Draw to backbuffer using bloom =====
-    BeginDrawing();
-
-    BeginShaderMode(bloom->bloom_shader);
-    for (i32 i = 0; i < countof(bloom->texture_locations); ++i) {
-        SetShaderValueTexture(bloom->bloom_shader, bloom->texture_locations[i], bloom->ping_pong_buffers[i][0].texture);
-    }
-
-    DrawTexturePro(state->render_target.texture,
-        (Rectangle){0, 0, (float)state->render_target.texture.width, (float)-state->render_target.texture.height},
-        (Rectangle){0, 0, (float)state->render_target.texture.width, (float)-state->render_target.texture.height},
-        (Vector2){0, 0},
-        0.0f,
-        WHITE);
-    EndShaderMode();
-    EndDrawing();
 }

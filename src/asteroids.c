@@ -17,6 +17,7 @@
 #include <stdint.h>
 
 #include "bloom.c"
+#include "bloom.h"
 #include "raylib.h"
 
 #if defined(PLATFORM_WEB)
@@ -431,10 +432,26 @@ void Draw(GameState *state)
 
     RenderBloomTextures(state);
 
+    //==== Draw to backbuffer using bloom =====
+    BeginDrawing();
+
+    BloomScreenEffect *bloom = &state->bloom;
+    BeginShaderMode(bloom->bloom_shader);
+    for (i32 i = 0; i < countof(bloom->texture_locations); ++i) {
+        SetShaderValueTexture(bloom->bloom_shader, bloom->texture_locations[i], bloom->ping_pong_buffers[i][0].texture);
+    }
+
+    DrawTexturePro(state->render_target.texture,
+        (Rectangle){0, 0, (float)state->render_target.texture.width, (float)-state->render_target.texture.height},
+        (Rectangle){0, 0, (float)state->render_target.texture.width, (float)-state->render_target.texture.height},
+        (Vector2){0, 0},
+        0.0f,
+        WHITE);
+    EndShaderMode();
+
     //======= Draw UI =========
 
     if (state->game_over || state->game_won) {
-        BeginDrawing();
         Rectangle rect = {state->screen_width / 2.0f - 256.0f, state->screen_height / 2.0f - 128.0f, 512.0f, 256.0f};
         DrawRectangleRounded(rect, 0.3f, 6, Fade(DARKGRAY, 0.5f));
 
@@ -455,14 +472,12 @@ void Draw(GameState *state)
 
         x = state->screen_width / 2.0f - text_width / 2.0f;
         DrawText(start_over_str, x, y + font_size * 4, font_size, WHITE);
-        EndDrawing();
     }
 
     if (state->show_fps) {
-        BeginDrawing();
         DrawFPS(10, 10);
-        EndDrawing();
     }
+    EndDrawing();
 }
 
 void UpdateAndDraw()
