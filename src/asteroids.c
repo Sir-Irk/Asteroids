@@ -213,34 +213,10 @@ void InitializeGame(GameState *state)
         state->win_sound       = LoadSound("sounds/win.wav");
         state->lose_sound      = LoadSound("sounds/lose.wav");
 
+        InitializeBloomEffect(&state->bloom, state->screen_width, state->screen_height);
+
         // NOTE: NULL for vert shader uses internal default shader
-#if defined(PLATFORM_WEB)
-        state->bloom.blur_shader  = LoadShader(NULL, "shaders/gaussian_blur_300_es.frag");
-        state->bloom.bloom_shader = LoadShader(NULL, "shaders/bloom_advanced_300_es.frag");
-#else
-        state->bloom.blur_shader  = LoadShader(NULL, "shaders/gaussian_blur.frag");
-        state->bloom.bloom_shader = LoadShader(NULL, "shaders/bloom_advanced.frag");
-#endif
-
-        state->render_target = LoadRenderTexture(state->screen_width, state->screen_height);
-
-        for (i32 i = 0; i < countof(state->bloom.ping_pong_buffers); ++i) {
-            i32 div = 2 * (i);
-            if (i == 0) div = 1;
-
-            state->bloom.ping_pong_buffers[i][0] = LoadRenderTexture(state->screen_width / div, state->screen_height / div);
-            state->bloom.ping_pong_buffers[i][1] = LoadRenderTexture(state->screen_width / div, state->screen_height / div);
-        }
-
-        state->bloom.texture_locations[0] = GetShaderLocation(state->bloom.bloom_shader, "bloomTexture1");
-        state->bloom.texture_locations[1] = GetShaderLocation(state->bloom.bloom_shader, "bloomTexture2");
-        state->bloom.texture_locations[2] = GetShaderLocation(state->bloom.bloom_shader, "bloomTexture3");
-        state->bloom.texture_locations[3] = GetShaderLocation(state->bloom.bloom_shader, "bloomTexture4");
-
-        for (i32 i = 0; i < countof(state->bloom.texture_locations); ++i) {
-            assert(state->bloom.texture_locations[i] >= 0);
-        }
-
+        state->render_target    = LoadRenderTexture(state->screen_width, state->screen_height);
         state->resources_loaded = true;
     }
 
@@ -485,8 +461,8 @@ int main(void)
 #if defined(PLATFORM_WEB)
     emscripten_set_main_loop(UpdateAndDraw, GetMonitorRefreshRate(GetCurrentMonitor()), 1);
 #else
-    // SetTargetFPS(GetMonitorRefreshRate(GetCurrentMonitor()));
-    SetTargetFPS(0);
+    SetTargetFPS(GetMonitorRefreshRate(GetCurrentMonitor()));
+    // SetTargetFPS(0);
     while (!WindowShouldClose()) {
         UpdateAndDraw();
     }
@@ -498,12 +474,7 @@ int main(void)
     UnloadSound(global_state.lose_sound);
 
     UnloadRenderTexture(global_state.render_target);
-    for (i32 i = 0; i < countof(global_state.bloom.ping_pong_buffers); ++i) {
-        UnloadRenderTexture(global_state.bloom.ping_pong_buffers[i][0]);
-        UnloadRenderTexture(global_state.bloom.ping_pong_buffers[i][1]);
-    }
-    UnloadShader(global_state.bloom.blur_shader);
-    UnloadShader(global_state.bloom.bloom_shader);
+    UnloadBloomEffect(&global_state.bloom);
 
     CloseAudioDevice();
     CloseWindow();

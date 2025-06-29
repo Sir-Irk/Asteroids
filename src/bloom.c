@@ -1,8 +1,47 @@
 #include "bloom.h"
 #include <raylib.h>
+#include "asteroids.h"
 #include "types.h"
 
 #include "game.h"
+
+static void InitializeBloomEffect(BloomScreenEffect *bloom, i32 start_width, i32 start_height)
+{
+#if defined(PLATFORM_WEB)
+    bloom->blur_shader  = LoadShader(NULL, "shaders/gaussian_blur_300_es.frag");
+    bloom->bloom_shader = LoadShader(NULL, "shaders/bloom_advanced_300_es.frag");
+#else
+    bloom->blur_shader  = LoadShader(0, "shaders/gaussian_blur.frag");
+    bloom->bloom_shader = LoadShader(0, "shaders/bloom_advanced.frag");
+#endif
+
+    for (i32 i = 0; i < countof(bloom->ping_pong_buffers); ++i) {
+        i32 div = 2 * (i);
+        if (i == 0) div = 1;
+
+        bloom->ping_pong_buffers[i][0] = LoadRenderTexture(start_width / div, start_height / div);
+        bloom->ping_pong_buffers[i][1] = LoadRenderTexture(start_width / div, start_height / div);
+    }
+
+    bloom->texture_locations[0] = GetShaderLocation(bloom->bloom_shader, "bloomTexture1");
+    bloom->texture_locations[1] = GetShaderLocation(bloom->bloom_shader, "bloomTexture2");
+    bloom->texture_locations[2] = GetShaderLocation(bloom->bloom_shader, "bloomTexture3");
+    bloom->texture_locations[3] = GetShaderLocation(bloom->bloom_shader, "bloomTexture4");
+
+    // for (i32 i = 0; i < countof(bloom->texture_locations); ++i) {
+    //    assert(bloom->texture_locations[i] >= 0);
+    //}
+}
+
+static void UnloadBloomEffect(BloomScreenEffect *bloom)
+{
+    UnloadShader(bloom->blur_shader);
+    UnloadShader(bloom->bloom_shader);
+    for (i32 i = 0; i < countof(bloom->ping_pong_buffers); ++i) {
+        UnloadRenderTexture(bloom->ping_pong_buffers[i][0]);
+        UnloadRenderTexture(bloom->ping_pong_buffers[i][1]);
+    }
+}
 
 void DrawFramebuffer(RenderTexture2D src, RenderTexture2D dst, b32 clear)
 {
