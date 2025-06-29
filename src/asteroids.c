@@ -4,6 +4,7 @@
     Using Raylib 5.x by Ramon Santamaria (@raysan5)
 ***************************************************************************/
 
+#include "asteroids.h"
 #include <assert.h>
 #include <limits.h>
 #include <raylib.h>
@@ -16,6 +17,7 @@
 #include <stdint.h>
 
 #include "bloom.c"
+#include "raylib.h"
 
 #if defined(PLATFORM_WEB)
 #include <emscripten/emscripten.h>
@@ -371,8 +373,12 @@ void Update(GameState *state)
             if (bullet_id >= 0) {
                 SetSoundPitch(state->explosion_sound, GetRandomFloatRange(0.90f, 1.1f));
                 PlaySound(state->explosion_sound);
+
+                state->player.score += POINTS_PER_ASTEROID / (asteroids[i].generation + 1);
+
                 ExplodeAsteroid(&state->asteroid_buffer, i--);
                 RemoveBullet(&state->bullet_buffer, bullet_id);
+
                 break;
             }
         }
@@ -410,6 +416,13 @@ void Draw(GameState *state)
     }
 
     EndMode2D();
+
+    // Draw score here to give it glow effect
+    {
+        i32 font_size = 36;
+        DrawText(TextFormat("SCORE: %d", state->player.score), 10, state->screen_height - font_size - 10, font_size, GRAY);
+    }
+
     EndTextureMode();
 
     RenderBloomTextures(state);

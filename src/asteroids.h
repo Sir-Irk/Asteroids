@@ -14,6 +14,8 @@
 
 #define countof(a) (sizeof(a) / sizeof(a[0]))
 
+#define POINTS_PER_ASTEROID 150
+
 typedef struct Asteroid {
     Vector2 position;
     Vector2 velocity;
@@ -25,6 +27,7 @@ typedef struct Asteroid {
 typedef struct Player {
     Vector2 position;
     Vector2 velocity;
+    i32     score;
     f32     rotation;
     f32     height;
     f32     shooting_rate;
