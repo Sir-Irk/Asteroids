@@ -20,7 +20,10 @@ static void InitializeBloomEffect(BloomScreenEffect *bloom, i32 start_width, i32
     i32 height = start_height;
     for (i32 i = 0; i < countof(bloom->ping_pong_buffers); ++i) {
         bloom->ping_pong_buffers[i][0] = LoadRenderTexture(width, height);
+        SetTextureFilter(bloom->ping_pong_buffers[i][0].texture, TEXTURE_FILTER_BILINEAR);
+
         bloom->ping_pong_buffers[i][1] = LoadRenderTexture(width, height);
+        SetTextureFilter(bloom->ping_pong_buffers[i][1].texture, TEXTURE_FILTER_BILINEAR);
         width /= 2;
         height /= 2;
     }
