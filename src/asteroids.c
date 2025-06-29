@@ -6,101 +6,20 @@
 
 #include <assert.h>
 #include <limits.h>
-#include <pthread.h>
 #include <raylib.h>
 #include <raymath.h>
+#include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include <math.h>
 #include <stdint.h>
 
+#include "bloom.c"
+
 #if defined(PLATFORM_WEB)
 #include <emscripten/emscripten.h>
 #endif
-
-typedef int8_t  i8;
-typedef int16_t i16;
-typedef int32_t i32;
-typedef int64_t i64;
-
-typedef uint8_t  u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-
-typedef i32 b32;
-
-typedef float  f32;
-typedef double f64;
-
-#define swap(a, b, type)                                                                                                                   \
-    do {                                                                                                                                   \
-        type tmp = (a);                                                                                                                    \
-        (a)      = (b);                                                                                                                    \
-        (b)      = (tmp);                                                                                                                  \
-    } while (0)
-
-#define countof(a) (sizeof(a) / sizeof(a[0]))
-
-typedef struct Asteroid {
-    Vector2 position;
-    Vector2 velocity;
-    f32     angular_velocity;
-    i32     generation; // 3 generations. 0 = Big asteroid, 1 = Medium, 2 = Small, >=3 = dead
-    Vector2 vertices[12];
-} Asteroid;
-
-typedef struct Player {
-    Vector2 position;
-    Vector2 velocity;
-    f32     rotation;
-    f32     height;
-    Vector2 vertices[4];
-    Vector2 reference_vertices[4];
-} Player;
-
-typedef struct Bullet {
-    Vector2 prev_position;
-    Vector2 position;
-    Vector2 velocity;
-    f32     radius;
-} Bullet;
-
-typedef struct BulletBuffer {
-    i32    capacity;
-    i32    count;
-    Bullet elements[64];
-} BulletBuffer;
-
-typedef struct AsteroidBuffer {
-    i32      capacity;
-    i32      count;
-    f32      asteroid_max_scale;
-    Asteroid elements[128];
-} AsteroidBuffer;
-
-typedef struct GameState {
-    b32     resources_loaded;
-    b32     game_over;
-    b32     game_won;
-    i32     screen_width;
-    i32     screen_height;
-    Vector2 world_min;
-    Vector2 world_max;
-
-    Player player;
-
-    Camera2D camera;
-
-    BulletBuffer   bullet_buffer;
-    AsteroidBuffer asteroid_buffer;
-
-    Sound shoot_sound;
-    Sound explosion_sound;
-    Sound win_sound;
-    Sound lose_sound;
-} GameState;
-
 GameState global_state = {};
 
 f32 GetRandomFloat01()
@@ -281,14 +200,47 @@ void InitializeGame(GameState *state)
 {
     state->world_min = (Vector2){0.0f, 0.0f};
     state->world_max = (Vector2){2560.0f, 1440.0f};
+
     state->game_over = false;
     state->game_won  = false;
 
+    state->screen_width  = GetScreenWidth();
+    state->screen_height = GetScreenHeight();
+
     if (!state->resources_loaded) {
-        state->shoot_sound      = LoadSound("sounds/shoot.wav");
-        state->explosion_sound  = LoadSound("sounds/explosion.wav");
-        state->win_sound        = LoadSound("sounds/win.wav");
-        state->lose_sound       = LoadSound("sounds/lose.wav");
+        state->shoot_sound     = LoadSound("sounds/shoot.wav");
+        state->explosion_sound = LoadSound("sounds/explosion.wav");
+        state->win_sound       = LoadSound("sounds/win.wav");
+        state->lose_sound      = LoadSound("sounds/lose.wav");
+
+        // NOTE: NULL for vert shader uses internal default shader
+#if defined(PLATFORM_WEB)
+        state->bloom.blur_shader  = LoadShader(NULL, "shaders/gaussian_blur_300_es.frag");
+        state->bloom.bloom_shader = LoadShader(NULL, "shaders/bloom_advanced_300_es.frag");
+#else
+        state->bloom.blur_shader  = LoadShader(NULL, "shaders/gaussian_blur.frag");
+        state->bloom.bloom_shader = LoadShader(NULL, "shaders/bloom_advanced.frag");
+#endif
+
+        state->render_target = LoadRenderTexture(state->screen_width, state->screen_height);
+
+        for (i32 i = 0; i < countof(state->bloom.ping_pong_buffers); ++i) {
+            i32 div = 2 * (i);
+            if (i == 0) div = 1;
+
+            state->bloom.ping_pong_buffers[i][0] = LoadRenderTexture(state->screen_width / div, state->screen_height / div);
+            state->bloom.ping_pong_buffers[i][1] = LoadRenderTexture(state->screen_width / div, state->screen_height / div);
+        }
+
+        state->bloom.texture_locations[0] = GetShaderLocation(state->bloom.bloom_shader, "bloomTexture1");
+        state->bloom.texture_locations[1] = GetShaderLocation(state->bloom.bloom_shader, "bloomTexture2");
+        state->bloom.texture_locations[2] = GetShaderLocation(state->bloom.bloom_shader, "bloomTexture3");
+        state->bloom.texture_locations[3] = GetShaderLocation(state->bloom.bloom_shader, "bloomTexture4");
+
+        for (i32 i = 0; i < countof(state->bloom.texture_locations); ++i) {
+            assert(state->bloom.texture_locations[i] >= 0);
+        }
+
         state->resources_loaded = true;
     }
 
@@ -305,16 +257,12 @@ void InitializeGame(GameState *state)
     state->player.reference_vertices[3] = (Vector2){-player_width / 2.0f, player_height / 2.0f};
     memcpy(state->player.vertices, state->player.reference_vertices, sizeof(state->player.vertices));
 
-    state->player.position = (Vector2){state->world_max.x / 2.0f, state->world_max.y / 2.0f};
-
-    i32 screen_width  = GetScreenWidth();
-    i32 screen_height = GetScreenHeight();
-
-    state->screen_width  = screen_width;
-    state->screen_height = screen_height;
+    state->player.position            = (Vector2){state->world_max.x / 2.0f, state->world_max.y / 2.0f};
+    state->player.shootingRateSeconds = 0.1f;
+    state->player.shootingTimestamp   = GetTime();
 
     // NOTE: assumes aspect ratio will not change
-    state->camera.zoom = screen_width / 2560.0f;
+    state->camera.zoom = state->screen_width / 2560.0f;
 
     state->asteroid_buffer = (AsteroidBuffer){
         .count              = 0,
@@ -371,13 +319,16 @@ void Update(GameState *state)
         state->player.vertices[i] = Vector2Transform(state->player.reference_vertices[i], rot);
     }
 
-    if (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(0)) {
-        SetSoundPitch(state->shoot_sound, GetRandomFloatRange(0.95f, 1.05f));
-        PlaySound(state->shoot_sound);
-        Vector2 direction = Vector2Normalize(Vector2Subtract(mouse_pos, state->player.position));
-        Vector2 pos       = Vector2Add(state->player.position, Vector2Scale(direction, state->player.height / 2.0f));
-        Bullet  bullet    = {pos, pos, Vector2Scale(direction, 900.0f), 8.0f};
-        PushBullet(&state->bullet_buffer, bullet);
+    if (IsKeyDown(KEY_SPACE) || IsMouseButtonDown(0)) {
+        if (GetTime() - state->player.shootingTimestamp >= state->player.shootingRateSeconds) {
+            SetSoundPitch(state->shoot_sound, GetRandomFloatRange(0.95f, 1.05f));
+            PlaySound(state->shoot_sound);
+            Vector2 direction = Vector2Normalize(Vector2Subtract(mouse_pos, state->player.position));
+            Vector2 pos       = Vector2Add(state->player.position, Vector2Scale(direction, state->player.height / 2.0f));
+            Bullet  bullet    = {pos, pos, Vector2Scale(direction, 900.0f), 10.0f};
+            PushBullet(&state->bullet_buffer, bullet);
+            state->player.shootingTimestamp = GetTime();
+        }
     }
 
     Vector2 direction = {};
@@ -386,9 +337,9 @@ void Update(GameState *state)
     if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT)) direction = Vector2Add(direction, (Vector2){-1.0f, 0.0f});
     if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT)) direction = Vector2Add(direction, (Vector2){1.0f, 0.0f});
     direction              = Vector2Normalize(direction);
-    state->player.velocity = Vector2Add(state->player.velocity, Vector2Scale(direction, 30.0f * dt));
+    state->player.velocity = Vector2Add(state->player.velocity, Vector2Scale(direction, 2.0f * dt));
 
-    f32 max_magnitude = 400.0f * dt;
+    f32 max_magnitude = 250.0f * dt;
     if (Vector2Length(state->player.velocity) > max_magnitude) {
         state->player.velocity = Vector2Scale(Vector2Normalize(state->player.velocity), max_magnitude);
     }
@@ -412,7 +363,7 @@ void Update(GameState *state)
         state->player.position.y += max_y + state->player.height;
     }
 
-    f32 drag = expf(-3.00f * dt);
+    f32 drag = expf(-0.30f * dt);
     state->player.velocity.x *= drag;
     state->player.velocity.y *= drag;
 
@@ -454,7 +405,9 @@ void Update(GameState *state)
 
 void Draw(GameState *state)
 {
-    BeginDrawing();
+
+    //====== Draw Geometry Into a Render Teture =========
+    BeginTextureMode(state->render_target);
     ClearBackground(BLACK);
     BeginMode2D(state->camera);
 
@@ -464,23 +417,28 @@ void Draw(GameState *state)
             i32     next = (v + 1) % countof(asteroids[i].vertices);
             Vector2 pos0 = Vector2Add(asteroids[i].vertices[v], asteroids[i].position);
             Vector2 pos1 = Vector2Add(asteroids[i].vertices[next], asteroids[i].position);
-            DrawLineEx(pos0, pos1, 2.0f, WHITE);
+            DrawLineEx(pos0, pos1, 3.0f, WHITE);
         }
     }
 
     for (i32 i = 0; i < state->bullet_buffer.count; ++i) {
         Vector2 pos = state->bullet_buffer.elements[i].position;
-        DrawCircle(pos.x, pos.y, 8.0f, YELLOW);
+        DrawCircle(pos.x, pos.y, state->bullet_buffer.elements[i].radius, YELLOW);
     }
 
     for (i32 i = 0; i < countof(state->player.vertices); ++i) {
         i32     next = (i + 1) % countof(state->player.vertices);
         Vector2 pos0 = Vector2Add(state->player.vertices[i], state->player.position);
         Vector2 pos1 = Vector2Add(state->player.vertices[next], state->player.position);
-        DrawLineEx(pos0, pos1, 2.0f, ORANGE);
+        DrawLineEx(pos0, pos1, 3.0f, ORANGE);
     }
 
     EndMode2D();
+    EndTextureMode();
+
+    RenderBloomTextures(state);
+
+    //======= Draw UI =========
 
     if (state->game_over || state->game_won) {
         Rectangle rect = {state->screen_width / 2.0f - 256.0f, state->screen_height / 2.0f - 128.0f, 512.0f, 256.0f};
@@ -522,14 +480,13 @@ int main(void)
     InitAudioDevice();
     SetRandomSeed(time(NULL));
 
-    // NOTE: We use global state so that we can use "emscripten_set_main_loop" because
-    //       using the "ASYNCIFY" flag with WindowShouldClose() has a significant performance penalty
     InitializeGame(&global_state);
 
 #if defined(PLATFORM_WEB)
     emscripten_set_main_loop(UpdateAndDraw, GetMonitorRefreshRate(GetCurrentMonitor()), 1);
 #else
-    SetTargetFPS(GetMonitorRefreshRate(GetCurrentMonitor()));
+    // SetTargetFPS(GetMonitorRefreshRate(GetCurrentMonitor()));
+    SetTargetFPS(0);
     while (!WindowShouldClose()) {
         UpdateAndDraw();
     }
@@ -539,6 +496,14 @@ int main(void)
     UnloadSound(global_state.explosion_sound);
     UnloadSound(global_state.win_sound);
     UnloadSound(global_state.lose_sound);
+
+    UnloadRenderTexture(global_state.render_target);
+    for (i32 i = 0; i < countof(global_state.bloom.ping_pong_buffers); ++i) {
+        UnloadRenderTexture(global_state.bloom.ping_pong_buffers[i][0]);
+        UnloadRenderTexture(global_state.bloom.ping_pong_buffers[i][1]);
+    }
+    UnloadShader(global_state.bloom.blur_shader);
+    UnloadShader(global_state.bloom.bloom_shader);
 
     CloseAudioDevice();
     CloseWindow();
