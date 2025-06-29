@@ -1,6 +1,7 @@
 #include "bloom.h"
 #include <raylib.h>
 #include "asteroids.h"
+#include "raylib.h"
 #include "types.h"
 
 #include "game.h"
@@ -107,4 +108,5 @@ static void RenderBloomTextures(GameState *state)
         0.0f,
         WHITE);
     EndShaderMode();
+    EndDrawing();
 }
