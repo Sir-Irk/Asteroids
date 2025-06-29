@@ -82,7 +82,7 @@ static void RenderBloomTextures(GameState *state)
             DrawFramebuffer(bloom->ping_pong_buffers[set - 1][0], *buf0, true);
         }
 
-        for (i32 i = 0; i < 6; ++i) {
+        for (i32 i = 0; i < BLOOM_BLUR_PASS_COUNT; ++i) {
             horizontal = true;
             SetShaderValue(bloom->blur_shader, loc, &horizontal, SHADER_UNIFORM_INT);
             DrawFramebuffer(*buf0, *buf1, false);

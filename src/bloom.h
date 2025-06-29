@@ -4,6 +4,7 @@
 #include "asteroids.h"
 #include "raylib.h"
 
+#define BLOOM_BLUR_PASS_COUNT 3
 #define BLOOM_PING_PONG_BUFFER_COUNT 4
 
 typedef struct BloomScreenEffect {
