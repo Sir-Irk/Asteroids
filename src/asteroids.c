@@ -429,6 +429,7 @@ void Draw(GameState *state)
 
     //======= Draw UI =========
 
+    BeginDrawing();
     if (state->game_over || state->game_won) {
         Rectangle rect = {state->screen_width / 2.0f - 256.0f, state->screen_height / 2.0f - 128.0f, 512.0f, 256.0f};
         DrawRectangleRounded(rect, 0.3f, 6, Fade(DARKGRAY, 0.5f));
