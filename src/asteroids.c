@@ -21,8 +21,8 @@
 #endif
 
 #include "asteroids.h"
+
 #include "bloom.c"
-#include "bloom.h"
 
 GameState global_state = {};
 
@@ -163,10 +163,10 @@ static void UpdateAsteroidPositions(AsteroidBuffer *asteroid_buffer, f32 min_x, 
         a->position.y += a->velocity.y * dt;
 
         f32 scale     = asteroid_buffer->asteroid_max_scale / (1.0f + a->generation);
-        i32 max_x_off = max_x + scale;
-        i32 min_x_off = min_x - scale;
-        i32 max_y_off = max_y + scale;
-        i32 min_y_off = min_y - scale;
+        i32 max_x_off = max_x + scale * 0.9f;
+        i32 min_x_off = min_x - scale * 0.9f;
+        i32 max_y_off = max_y + scale * 0.9f;
+        i32 min_y_off = min_y - scale * 0.9f;
 
         if (a->position.x > max_x_off) {
             a->position.x -= max_x_off + scale;
@@ -194,11 +194,13 @@ static Asteroid CreateAsteroid(Vector2 position, Vector2 velocity, f32 scale, i3
     i32 count = countof(asteroid.vertices);
     f32 step  = 2 * PI / count;
 
+    f32 scale_variance = GetRandomFloatRange(0.75f, 1.5f);
+
     for (i32 i = 0; i < count; ++i) {
         f32 angle = (i + 1) * step;
         f32 x     = cosf(angle);
         f32 y     = sinf(angle);
-        f32 s     = scale * GetRandomFloatRange(0.5f, 1.0f);
+        f32 s     = scale * GetRandomFloatRange(0.4f * scale_variance, 1.0f * scale_variance);
 
         asteroid.vertices[i] = Vector2Scale(Vector2Normalize((Vector2){x, y}), s);
     }
@@ -308,12 +310,9 @@ static void InitializeGame(GameState *state)
         .capacity = countof(state->power_up_buffer.elements),
     };
 
-    state->power_up_spawn_timestamp = GetTime();
-    state->power_up_spawn_delay     = GetRandomFloatRange(POWER_UP_MIN_SPAWN_RATE, POWER_UP_MAX_SPAWN_RATE);
-
-    for (i32 i = 0; i < 20; ++i) {
+    for (i32 i = 0; i < 24; ++i) {
         Vector2 screen_center = (Vector2){(f32)state->world_max.x / 2, (f32)state->world_max.y / 2};
-        Vector2 random_dir    = GetRandomVector2UnitCircle(GetRandomFloatRange(state->world_max.y / 3.0f, state->world_max.y / 1.5f));
+        Vector2 random_dir    = GetRandomVector2UnitCircle(GetRandomFloatRange(state->world_max.y / 4.0f, state->world_max.y / 1.25f));
         Vector2 position      = Vector2Add(screen_center, random_dir);
         Vector2 velocity      = GetRandomVector2UnitCircle(GetRandomFloatRange(50.0f, 250.0f));
         PushAsteroid(&state->asteroid_buffer, CreateAsteroid(position, velocity, state->asteroid_buffer.asteroid_max_scale, 0));
@@ -494,12 +493,9 @@ static void Update(GameState *state)
                 state->player.score += POINTS_PER_ASTEROID / (asteroids[i].generation + 1);
 
                 f32 current_time = GetTime();
-                b32 dice_roll    = GetRandomValue(0, 10) == 0;
-                if (current_time - state->power_up_spawn_timestamp >= state->power_up_spawn_delay && dice_roll) {
+                if (GetRandomValue(0, 30) == 0) {
                     PushPowerUp(&state->power_up_buffer, CreateRandomPowerUp(asteroids[i].position));
                     PlaySound(state->sounds[SOUND_POWER_UP_SPAWNED]);
-                    state->power_up_spawn_delay     = GetRandomFloatRange(POWER_UP_MIN_SPAWN_RATE, POWER_UP_MAX_SPAWN_RATE);
-                    state->power_up_spawn_timestamp = current_time;
                 }
 
                 ExplodeAsteroid(&state->asteroid_buffer, i--);
