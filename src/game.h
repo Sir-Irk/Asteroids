@@ -16,6 +16,10 @@ typedef struct GameState {
 
     BulletBuffer   bullet_buffer;
     AsteroidBuffer asteroid_buffer;
+    PowerUpBuffer  power_up_buffer;
+
+    f32 power_up_spawn_delay;
+    f32 power_up_spawn_timestamp;
 
     RenderTexture2D   render_target;
     BloomScreenEffect bloom;

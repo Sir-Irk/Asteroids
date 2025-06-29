@@ -14,6 +14,9 @@
 
 #define countof(a) (sizeof(a) / sizeof(a[0]))
 
+#define si_min(a, b) (a) < (b) ? (a) : (b);
+#define si_max(a, b) (a) > (b) ? (a) : (b);
+
 #define POINTS_PER_ASTEROID 150
 
 typedef struct Asteroid {
@@ -24,6 +27,21 @@ typedef struct Asteroid {
     Vector2 vertices[12];
 } Asteroid;
 
+enum PowerUpType {
+    POWER_UP_TYPE_BOUNCEY_BULLETS,
+    POWER_UP_TYPE_INVINCIBILITY,
+    POWER_UP_TYPE_SHOTGUN,
+    POWER_UP_TYPE_MACHINE_GUN,
+    POWER_UP_TYPE_COUNT,
+};
+
+#define POWER_UP_RADIUS 80.0f
+#define POWER_UP_DURATION 10.0f
+#define POWER_UP_MIN_SPAWN_RATE 1.0f
+#define POWER_UP_MAX_SPAWN_RATE 2.0f
+
+#define PLAYER_SHOOTING_RATE 0.25f
+
 typedef struct Player {
     Vector2 position;
     Vector2 velocity;
@@ -32,9 +50,25 @@ typedef struct Player {
     f32     height;
     f32     shooting_rate;
     f32     shooting_timestamp;
+
+    u32 power_up_flags;
+    f32 power_up_timestamps[POWER_UP_TYPE_COUNT];
+
     Vector2 vertices[4];
     Vector2 reference_vertices[4];
 } Player;
+
+typedef struct PowerUp {
+    enum PowerUpType type;
+    f32              time_spawned;
+    Vector2          position;
+} PowerUp;
+
+typedef struct PowerUpBuffer {
+    i32     capacity;
+    i32     count;
+    PowerUp elements[4];
+} PowerUpBuffer;
 
 typedef struct Bullet {
     Vector2 prev_position;
@@ -46,7 +80,7 @@ typedef struct Bullet {
 typedef struct BulletBuffer {
     i32    capacity;
     i32    count;
-    Bullet elements[64];
+    Bullet elements[128];
 } BulletBuffer;
 
 typedef struct AsteroidBuffer {
