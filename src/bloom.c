@@ -9,10 +9,10 @@ static void InitializeBloomEffect(BloomScreenEffect *bloom, i32 start_width, i32
 {
 #if defined(PLATFORM_WEB)
     bloom->blur_shader  = LoadShader(NULL, "shaders/gaussian_blur_300_es.frag");
-    bloom->bloom_shader = LoadShader(NULL, "shaders/bloom_advanced_300_es.frag");
+    bloom->bloom_shader = LoadShader(NULL, "shaders/bloom_300_es.frag");
 #else
     bloom->blur_shader  = LoadShader(0, "shaders/gaussian_blur.frag");
-    bloom->bloom_shader = LoadShader(0, "shaders/bloom_advanced.frag");
+    bloom->bloom_shader = LoadShader(0, "shaders/bloom.frag");
 #endif
 
     i32 width  = start_width;

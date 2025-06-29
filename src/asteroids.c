@@ -344,7 +344,6 @@ static void Update(GameState *state)
         return;
     }
 
-    f32 current_time = GetTime();
     for (i32 i = 0; i < state->power_up_buffer.count; ++i) {
         PowerUp *p = &state->power_up_buffer.elements[i];
 
@@ -359,9 +358,8 @@ static void Update(GameState *state)
         }
     }
 
-    current_time = GetTime();
     for (i32 i = 0; i < countof(state->player.power_up_timestamps); i++) {
-        if (current_time - state->player.power_up_timestamps[i] >= POWER_UP_DURATION) {
+        if (GetTime() - state->player.power_up_timestamps[i] >= POWER_UP_DURATION) {
             state->player.power_up_flags &= ~(1u << i);
         }
     }
@@ -492,9 +490,11 @@ static void Update(GameState *state)
 
                 state->player.score += POINTS_PER_ASTEROID / (asteroids[i].generation + 1);
 
-                f32 current_time = GetTime();
                 if (GetRandomValue(0, 30) == 0) {
-                    PushPowerUp(&state->power_up_buffer, CreateRandomPowerUp(asteroids[i].position));
+                    Vector2 padding = {50.0f, 50.0f};
+                    Vector2 clamped = Vector2Clamp(
+                        asteroids[i].position, Vector2Add(state->world_min, padding), Vector2Subtract(state->world_max, padding));
+                    PushPowerUp(&state->power_up_buffer, CreateRandomPowerUp(clamped));
                     PlaySound(state->sounds[SOUND_POWER_UP_SPAWNED]);
                 }
 
