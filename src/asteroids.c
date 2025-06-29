@@ -297,6 +297,10 @@ void Update(GameState *state)
         state->player.vertices[i] = Vector2Transform(state->player.reference_vertices[i], rot);
     }
 
+    if (IsKeyPressed(KEY_F)) {
+        state->show_fps = !state->show_fps;
+    }
+
     if (IsKeyDown(KEY_SPACE) || IsMouseButtonDown(0)) {
         if (GetTime() - state->player.shooting_timestamp >= state->player.shooting_rate) {
             SetSoundPitch(state->shoot_sound, GetRandomFloatRange(0.95f, 1.05f));
@@ -429,8 +433,8 @@ void Draw(GameState *state)
 
     //======= Draw UI =========
 
-    BeginDrawing();
     if (state->game_over || state->game_won) {
+        BeginDrawing();
         Rectangle rect = {state->screen_width / 2.0f - 256.0f, state->screen_height / 2.0f - 128.0f, 512.0f, 256.0f};
         DrawRectangleRounded(rect, 0.3f, 6, Fade(DARKGRAY, 0.5f));
 
@@ -451,10 +455,14 @@ void Draw(GameState *state)
 
         x = state->screen_width / 2.0f - text_width / 2.0f;
         DrawText(start_over_str, x, y + font_size * 4, font_size, WHITE);
+        EndDrawing();
     }
 
-    DrawFPS(10, 10);
-    EndDrawing();
+    if (state->show_fps) {
+        BeginDrawing();
+        DrawFPS(10, 10);
+        EndDrawing();
+    }
 }
 
 void UpdateAndDraw()

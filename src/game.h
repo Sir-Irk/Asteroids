@@ -2,11 +2,12 @@
 #include "bloom.h"
 
 typedef struct GameState {
-    b32     resources_loaded;
-    b32     game_over;
-    b32     game_won;
-    i32     screen_width;
-    i32     screen_height;
+    b32 resources_loaded;
+    b32 game_over;
+    b32 game_won;
+    i32 screen_width;
+    i32 screen_height;
+
     Vector2 world_min;
     Vector2 world_max;
 
@@ -23,4 +24,6 @@ typedef struct GameState {
     Sound explosion_sound;
     Sound win_sound;
     Sound lose_sound;
+
+    b32 show_fps;
 } GameState;
