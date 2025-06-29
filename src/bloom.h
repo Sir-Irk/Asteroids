@@ -1,8 +1,8 @@
 #ifndef BLOOM_EFFECT_HEADER_GUARD
 #define BLOOM_EFFECT_HEADER_GUARD
 
+#include <raylib.h>
 #include "asteroids.h"
-#include "raylib.h"
 
 #if defined(PLATFORM_WEB)
 #define BLOOM_BLUR_PASS_COUNT 2

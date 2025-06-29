@@ -4,27 +4,33 @@
     Using Raylib 5.x by Ramon Santamaria (@raysan5)
 ***************************************************************************/
 
-#include "asteroids.h"
 #include <assert.h>
 #include <limits.h>
-#include <raylib.h>
-#include <raymath.h>
-#include <stdio.h>
+// #include <stdio.h>
 #include <string.h>
 #include <time.h>
 
 #include <math.h>
 #include <stdint.h>
 
-#include "bloom.c"
-#include "bloom.h"
-#include "raylib.h"
-#include "raymath.h"
+#include <raylib.h>
+#include <raymath.h>
 
 #if defined(PLATFORM_WEB)
 #include <emscripten/emscripten.h>
 #endif
+
+#include "asteroids.h"
+#include "bloom.c"
+#include "bloom.h"
+
 GameState global_state = {};
+
+f32 SmoothStep(f32 edge0, f32 edge1, f32 x)
+{
+    f32 t = Clamp((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
+    return t * t * (3.0f - 2.0f * t);
+}
 
 f32 GetRandomFloat01()
 {
@@ -62,12 +68,14 @@ void RemovePowerUp(PowerUpBuffer *buffer, i32 index)
     buffer->count--;
 }
 
-static PowerUp CreateRandomPowerUp(f32 spawn_radius)
+PowerUp CreateRandomPowerUp(Vector2 position)
 {
     PowerUp power = {
         .type         = GetRandomValue(0, POWER_UP_TYPE_COUNT - 1),
-        .position     = GetRandomVector2UnitCircle(spawn_radius),
+        .position     = position,
         .time_spawned = GetTime(),
+        .radius       = 0.0f,
+        .lerp_prog    = 0.0f,
     };
 
     return power;
@@ -111,7 +119,7 @@ void RemoveAsteroid(AsteroidBuffer *buffer, i32 index)
     buffer->count--;
 }
 
-b32 CheckCollionPlayerLine(Player *player, Vector2 p0, Vector2 p1)
+static b32 CheckCollionPlayerLine(Player *player, Vector2 p0, Vector2 p1)
 {
     for (i32 pv = 0; pv < countof(player->vertices); ++pv) {
         i32     pv_next = (pv + 1) % countof(player->vertices);
@@ -125,7 +133,7 @@ b32 CheckCollionPlayerLine(Player *player, Vector2 p0, Vector2 p1)
     return false;
 }
 
-i32 CheckCollisionBulletLine(BulletBuffer *bullets, Vector2 p0, Vector2 p1)
+static i32 CheckCollisionBulletLine(BulletBuffer *bullets, Vector2 p0, Vector2 p1)
 {
     for (i32 b = 0; b < bullets->count; ++b) {
         Bullet *bullet = &bullets->elements[b];
@@ -147,7 +155,7 @@ i32 CheckCollisionBulletLine(BulletBuffer *bullets, Vector2 p0, Vector2 p1)
     return -1;
 }
 
-void UpdateAsteroidPositions(AsteroidBuffer *asteroid_buffer, f32 min_x, f32 min_y, f32 max_x, f32 max_y, f32 dt)
+static void UpdateAsteroidPositions(AsteroidBuffer *asteroid_buffer, f32 min_x, f32 min_y, f32 max_x, f32 max_y, f32 dt)
 {
     for (i32 i = 0; i < asteroid_buffer->count; ++i) {
         Asteroid *a = &asteroid_buffer->elements[i];
@@ -179,7 +187,7 @@ void UpdateAsteroidPositions(AsteroidBuffer *asteroid_buffer, f32 min_x, f32 min
     }
 }
 
-Asteroid CreateAsteroid(Vector2 position, Vector2 velocity, f32 scale, i32 generation)
+static Asteroid CreateAsteroid(Vector2 position, Vector2 velocity, f32 scale, i32 generation)
 {
     Asteroid asteroid = {};
 
@@ -203,7 +211,7 @@ Asteroid CreateAsteroid(Vector2 position, Vector2 velocity, f32 scale, i32 gener
     return asteroid;
 }
 
-void ExplodeAsteroid(AsteroidBuffer *asteroids, i32 asteroid_id)
+static void ExplodeAsteroid(AsteroidBuffer *asteroids, i32 asteroid_id)
 {
     Asteroid *a = &asteroids->elements[asteroid_id];
 
@@ -225,7 +233,7 @@ void ExplodeAsteroid(AsteroidBuffer *asteroids, i32 asteroid_id)
     }
 }
 
-void UpdateBulletLives(BulletBuffer *bullets, Vector2 world_min, Vector2 world_max)
+static void UpdateBulletLives(BulletBuffer *bullets, Vector2 world_min, Vector2 world_max)
 {
     for (i32 i = 0; i < bullets->count; ++i) {
         Bullet *b = &bullets->elements[i];
@@ -235,7 +243,7 @@ void UpdateBulletLives(BulletBuffer *bullets, Vector2 world_min, Vector2 world_m
     }
 }
 
-void InitializeGame(GameState *state)
+static void InitializeGame(GameState *state)
 {
     state->world_min = (Vector2){0.0f, 0.0f};
     state->world_max = (Vector2){2560.0f, 1440.0f};
@@ -310,7 +318,7 @@ void InitializeGame(GameState *state)
     }
 }
 
-void Update(GameState *state)
+static void Update(GameState *state)
 {
     f32 dt = GetFrameTime();
 
@@ -336,16 +344,11 @@ void Update(GameState *state)
     }
 
     f32 current_time = GetTime();
-    if (current_time - state->power_up_spawn_timestamp >= state->power_up_spawn_delay) {
-        PushPowerUp(&state->power_up_buffer, CreateRandomPowerUp(state->world_max.x / 2.0f));
-        state->power_up_spawn_delay     = GetRandomFloatRange(POWER_UP_MIN_SPAWN_RATE, POWER_UP_MAX_SPAWN_RATE);
-        state->power_up_spawn_timestamp = current_time;
-    }
-
     for (i32 i = 0; i < state->power_up_buffer.count; ++i) {
-        PowerUp *p   = &state->power_up_buffer.elements[i];
-        Vector2  dir = Vector2Normalize(Vector2Subtract((Vector2){state->world_max.x / 2.0f, state->world_max.y / 2.0f}, p->position));
-        p->position  = Vector2Add(p->position, Vector2Scale(dir, 200.0f * dt));
+        PowerUp *p = &state->power_up_buffer.elements[i];
+
+        p->lerp_prog = si_min(p->lerp_prog + dt, 1.0f);
+        p->radius    = Lerp(0.0f, POWER_UP_RADIUS, SmoothStep(0.0f, 1.0f, p->lerp_prog));
 
         if (Vector2Distance(p->position, state->player.position) <= POWER_UP_RADIUS) {
             state->player.power_up_flags |= 1 << p->type;
@@ -384,11 +387,22 @@ void Update(GameState *state)
             Vector2 pos       = Vector2Add(state->player.position, Vector2Scale(direction, state->player.height / 2.0f));
 
             if ((state->player.power_up_flags >> POWER_UP_TYPE_SHOTGUN) & 1) {
+                // NOTE: The further the mouse is from the player, the tighter the shotgun spread will be
                 Vector2 direction = Vector2Normalize(Vector2Subtract(mouse_pos, state->player.position));
-                f32     spread    = si_min(0.9f, 1.0f / Vector2Distance(state->player.position, mouse_pos) * 50.0f);
+                f32     spread    = si_max(0.2f, si_min(0.9f, 1.0f / (Vector2Distance(state->player.position, mouse_pos) * 0.01f)));
+
                 for (i32 i = -1; i < 2; ++i) {
-                    Vector2 dir    = Vector2Normalize(Vector2Add(direction, (Vector2){(f32)i * spread, 0.0f}));
-                    Bullet  bullet = {pos, pos, Vector2Scale(dir, 900.0f), 10.0f};
+
+                    // Rotate the spread vector
+                    Vector2 dir = {
+                        (i * spread) * Vector2DotProduct(direction, (Vector2){0.0f, -1.0f}),
+                        (i * spread) * Vector2DotProduct(direction, (Vector2){1.0f, 0.0f}),
+                    };
+
+                    dir = Vector2Scale(dir, (i != 0));
+                    dir = Vector2Normalize(Vector2Add(direction, dir));
+
+                    Bullet bullet = {pos, pos, Vector2Scale(dir, 900.0f), 10.0f};
                     PushBullet(&state->bullet_buffer, bullet);
                 }
             } else {
@@ -469,6 +483,14 @@ void Update(GameState *state)
 
                 state->player.score += POINTS_PER_ASTEROID / (asteroids[i].generation + 1);
 
+                f32 current_time = GetTime();
+                b32 dice_roll    = GetRandomValue(0, 10) == 0;
+                if (current_time - state->power_up_spawn_timestamp >= state->power_up_spawn_delay && dice_roll) {
+                    PushPowerUp(&state->power_up_buffer, CreateRandomPowerUp(asteroids[i].position));
+                    state->power_up_spawn_delay     = GetRandomFloatRange(POWER_UP_MIN_SPAWN_RATE, POWER_UP_MAX_SPAWN_RATE);
+                    state->power_up_spawn_timestamp = current_time;
+                }
+
                 ExplodeAsteroid(&state->asteroid_buffer, i--);
 
                 if (((state->player.power_up_flags >> POWER_UP_TYPE_BOUNCEY_BULLETS) & 1) == 0) {
@@ -480,7 +502,7 @@ void Update(GameState *state)
     }
 }
 
-void Draw(GameState *state)
+static void Draw(GameState *state)
 {
     //====== Draw Geometry Into a Render Teture =========
     BeginTextureMode(state->render_target);
@@ -501,7 +523,7 @@ void Draw(GameState *state)
         PowerUp *p   = &state->power_up_buffer.elements[i];
         Vector2  pos = p->position;
         // DrawCircleGradient(pos.x, pos.y, POWER_UP_RADIUS, BLACK, Fade(BLUE, 0.5f));
-        f32     r = POWER_UP_RADIUS;
+        f32     r = p->radius;
         Vector2 v[3];
         for (i32 i = 0; i < countof(v); ++i) {
             f32 angle = (2.0f * PI / countof(v)) * (f32)(i + 1);
@@ -518,8 +540,8 @@ void Draw(GameState *state)
         // DrawTriangle(t0, t1, t2, Fade(GOLD, 0.5f));
         char letters[POWER_UP_TYPE_COUNT] = {'B', 'I', 'S', 'M'};
 
-        i32 font_size = POWER_UP_RADIUS - 20;
-        DrawText(TextFormat("%c", letters[p->type]), pos.x - POWER_UP_RADIUS / 2 + 20, pos.y - POWER_UP_RADIUS / 2 + 20, font_size, WHITE);
+        i32 font_size = p->radius - 20;
+        DrawText(TextFormat("%c", letters[p->type]), pos.x - p->radius / 2 + 20, pos.y - p->radius / 2 + 20, font_size, WHITE);
     }
 
     for (i32 i = 0; i < state->bullet_buffer.count; ++i) {

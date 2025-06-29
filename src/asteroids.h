@@ -1,8 +1,8 @@
 #ifndef ASTEROIDS_HEADER_GUARD
 #define ASTEROIDS_HEADER_GUARD
 
-#include "raylib.h"
-#include "raymath.h"
+#include <raylib.h>
+#include <raymath.h>
 #include "types.h"
 
 #define swap(a, b, type)                                                                                                                   \
@@ -14,8 +14,8 @@
 
 #define countof(a) (sizeof(a) / sizeof(a[0]))
 
-#define si_min(a, b) (a) < (b) ? (a) : (b);
-#define si_max(a, b) (a) > (b) ? (a) : (b);
+#define si_min(a, b) (a) < (b) ? (a) : (b)
+#define si_max(a, b) (a) > (b) ? (a) : (b)
 
 #define POINTS_PER_ASTEROID 150
 
@@ -60,8 +60,11 @@ typedef struct Player {
 
 typedef struct PowerUp {
     enum PowerUpType type;
-    f32              time_spawned;
-    Vector2          position;
+
+    f32     time_spawned;
+    f32     radius;
+    f32     lerp_prog;
+    Vector2 position;
 } PowerUp;
 
 typedef struct PowerUpBuffer {

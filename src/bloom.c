@@ -1,7 +1,6 @@
 #include "bloom.h"
 #include <raylib.h>
 #include "asteroids.h"
-#include "raylib.h"
 #include "types.h"
 
 #include "game.h"
