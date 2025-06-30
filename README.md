@@ -1,7 +1,8 @@
-A minimal asteroids game in C using [Raylib](https://www.raylib.com/) and Emscripten for wasm.
+A basic asteroids game in C using [Raylib](https://www.raylib.com/) and Emscripten for wasm.
 
 Play here: https://sir-irk.itch.io/asteroids
 
+Original version looked like this. I've since added bloom and other stuff for fun.
 ![Til](https://github.com/Sir-Irk/Asteroids/blob/main/demo.gif)
 
 Minimal C compilation(dynamic linking with raylib)
