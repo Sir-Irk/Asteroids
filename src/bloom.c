@@ -68,7 +68,6 @@ static void RenderBloomTextures(GameState *state)
 
     BeginShaderMode(bloom->blur_shader);
 
-    BeginTextureMode(bloom->ping_pong_buffers[0][0]);
     i32 loc        = GetShaderLocation(bloom->blur_shader, "horizontal");
     b32 horizontal = true;
     SetShaderValue(bloom->blur_shader, loc, &horizontal, SHADER_UNIFORM_INT);
@@ -78,8 +77,7 @@ static void RenderBloomTextures(GameState *state)
         RenderTexture *buf1 = &bloom->ping_pong_buffers[set][1];
 
         if (set == 0) {
-            // if (true) {
-            DrawFramebuffer(state->render_target, *buf0, true);
+            DrawFramebuffer(state->render_targets[1], *buf0, true);
         } else {
             DrawFramebuffer(bloom->ping_pong_buffers[set - 1][0], *buf0, true);
         }

@@ -28,8 +28,9 @@ typedef struct GameState {
     AsteroidBuffer asteroid_buffer;
     PowerUpBuffer  power_up_buffer;
 
-    RenderTexture2D   render_target;
+    RenderTexture2D   render_targets[2];
     BloomScreenEffect bloom;
+    Shader            fxaa_shader;
 
     Sound sounds[SOUND_COUNT];
 

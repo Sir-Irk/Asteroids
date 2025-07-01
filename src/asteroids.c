@@ -266,7 +266,12 @@ static void InitializeGame(GameState *state)
 
         InitializeBloomEffect(&state->bloom, state->screen_width, state->screen_height);
 
-        state->render_target    = LoadRenderTexture(state->screen_width, state->screen_height);
+        state->fxaa_shader = LoadShader(NULL, "shaders/fxaa.frag");
+
+        for (i32 i = 0; i < countof(state->render_targets); ++i) {
+            state->render_targets[i] = LoadRenderTexture(state->screen_width, state->screen_height);
+        }
+
         state->resources_loaded = true;
     }
 
@@ -512,7 +517,7 @@ static void Update(GameState *state)
 static void Draw(GameState *state)
 {
     //====== Draw Geometry Into a Render Teture =========
-    BeginTextureMode(state->render_target);
+    BeginTextureMode(state->render_targets[0]);
     ClearBackground(BLACK);
     BeginMode2D(state->camera);
 
@@ -578,6 +583,15 @@ static void Draw(GameState *state)
 
     EndTextureMode();
 
+    BeginShaderMode(state->fxaa_shader);
+    i32 loc = GetShaderLocation(state->fxaa_shader, "resolution");
+    SetShaderValue(state->fxaa_shader,
+        loc,
+        (float[2]){state->render_targets[0].texture.width, state->render_targets[0].texture.height},
+        SHADER_UNIFORM_VEC2);
+    DrawFramebuffer(state->render_targets[0], state->render_targets[1], true);
+    EndShaderMode();
+
     RenderBloomTextures(state);
 
     //==== Draw to backbuffer using bloom =====
@@ -589,9 +603,9 @@ static void Draw(GameState *state)
         SetShaderValueTexture(bloom->bloom_shader, bloom->texture_locations[i], bloom->ping_pong_buffers[i][0].texture);
     }
 
-    DrawTexturePro(state->render_target.texture,
-        (Rectangle){0, 0, (float)state->render_target.texture.width, (float)-state->render_target.texture.height},
-        (Rectangle){0, 0, (float)state->render_target.texture.width, (float)-state->render_target.texture.height},
+    DrawTexturePro(state->render_targets[1].texture,
+        (Rectangle){0, 0, (float)state->render_targets[1].texture.width, (float)-state->render_targets[1].texture.height},
+        (Rectangle){0, 0, (float)state->render_targets[1].texture.width, (float)-state->render_targets[1].texture.height},
         (Vector2){0, 0},
         0.0f,
         WHITE);
@@ -657,7 +671,9 @@ int main(void)
         UnloadSound(global_state.sounds[i]);
     }
 
-    UnloadRenderTexture(global_state.render_target);
+    for (i32 i = 0; i < countof(global_state.render_targets); ++i) {
+        UnloadRenderTexture(global_state.render_targets[i]);
+    }
     UnloadBloomEffect(&global_state.bloom);
 
     CloseAudioDevice();
