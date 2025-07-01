@@ -270,6 +270,7 @@ static void InitializeGame(GameState *state)
 
         for (i32 i = 0; i < countof(state->render_targets); ++i) {
             state->render_targets[i] = LoadRenderTexture(state->screen_width, state->screen_height);
+            SetTextureFilter(state->render_targets[i].texture, TEXTURE_FILTER_BILINEAR);
         }
 
         state->resources_loaded = true;
@@ -495,7 +496,7 @@ static void Update(GameState *state)
 
                 state->player.score += POINTS_PER_ASTEROID / (asteroids[i].generation + 1);
 
-                if (GetRandomValue(0, 30) == 0) {
+                if (GetRandomValue(0, 25) == 0) {
                     Vector2 padding = {50.0f, 50.0f};
                     Vector2 clamped = Vector2Clamp(
                         asteroids[i].position, Vector2Add(state->world_min, padding), Vector2Subtract(state->world_max, padding));
@@ -650,8 +651,7 @@ void UpdateAndDraw()
 
 int main(void)
 {
-    SetConfigFlags(FLAG_MSAA_4X_HINT);
-    InitWindow(1920, 1080, "Asteroids");
+    InitWindow(2560, 1440, "Asteroids");
     InitAudioDevice();
     SetRandomSeed(time(NULL));
 
@@ -662,6 +662,7 @@ int main(void)
 #else
     SetTargetFPS(GetMonitorRefreshRate(GetCurrentMonitor()));
     // SetTargetFPS(0);
+    ToggleBorderlessWindowed();
     while (!WindowShouldClose()) {
         UpdateAndDraw();
     }

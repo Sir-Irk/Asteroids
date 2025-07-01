@@ -18,11 +18,12 @@ static void InitializeBloomEffect(BloomScreenEffect *bloom, i32 start_width, i32
     i32 width  = start_width;
     i32 height = start_height;
     for (i32 i = 0; i < countof(bloom->ping_pong_buffers); ++i) {
-        bloom->ping_pong_buffers[i][0] = LoadRenderTexture(width, height);
-        SetTextureFilter(bloom->ping_pong_buffers[i][0].texture, TEXTURE_FILTER_BILINEAR);
+        for (i32 b = 0; b < countof(bloom->ping_pong_buffers[i]); ++b) {
+            bloom->ping_pong_buffers[i][b] = LoadRenderTexture(width, height);
+            SetTextureFilter(bloom->ping_pong_buffers[i][b].texture, TEXTURE_FILTER_BILINEAR);
+            SetTextureWrap(bloom->ping_pong_buffers[i][b].texture, TEXTURE_WRAP_CLAMP);
+        }
 
-        bloom->ping_pong_buffers[i][1] = LoadRenderTexture(width, height);
-        SetTextureFilter(bloom->ping_pong_buffers[i][1].texture, TEXTURE_FILTER_BILINEAR);
         width /= 2;
         height /= 2;
     }
@@ -42,6 +43,7 @@ static void UnloadBloomEffect(BloomScreenEffect *bloom)
     UnloadShader(bloom->blur_shader);
     UnloadShader(bloom->bloom_shader);
     for (i32 i = 0; i < countof(bloom->ping_pong_buffers); ++i) {
+
         UnloadRenderTexture(bloom->ping_pong_buffers[i][0]);
         UnloadRenderTexture(bloom->ping_pong_buffers[i][1]);
     }
