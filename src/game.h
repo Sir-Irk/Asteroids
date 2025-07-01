@@ -1,5 +1,14 @@
+#ifndef GAME_HEADER_GUARD
+#define GAME_HEADER_GUARD
+
 #include "asteroids.h"
 #include "bloom.h"
+
+#define STARTING_WINDOW_WIDTH 1920
+#define STARTING_WINDOW_HEIGHT 1080
+
+#define WORLD_WIDTH 2560
+#define WORLD_HEIGHT 1440
 
 typedef enum SoundNames {
     SOUND_SHOOT,
@@ -36,3 +45,5 @@ typedef struct GameState {
 
     b32 show_fps;
 } GameState;
+
+#endif // GAME_HEADER_GUARD

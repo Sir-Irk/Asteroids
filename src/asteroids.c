@@ -20,6 +20,8 @@
 #include <emscripten/emscripten.h>
 #endif
 
+#include "game.h"
+
 #include "asteroids.h"
 
 #include "bloom.c"
@@ -248,7 +250,7 @@ static void UpdateBulletLives(BulletBuffer *bullets, Vector2 world_min, Vector2 
 static void InitializeGame(GameState *state)
 {
     state->world_min = (Vector2){0.0f, 0.0f};
-    state->world_max = (Vector2){2560.0f, 1440.0f};
+    state->world_max = (Vector2){WORLD_WIDTH, WORLD_HEIGHT};
 
     state->game_over = false;
     state->game_won  = false;
@@ -651,7 +653,7 @@ void UpdateAndDraw()
 
 int main(void)
 {
-    InitWindow(2560, 1440, "Asteroids");
+    InitWindow(STARTING_WINDOW_WIDTH, STARTING_WINDOW_HEIGHT, "Asteroids");
     InitAudioDevice();
     SetRandomSeed(time(NULL));
 
@@ -662,7 +664,6 @@ int main(void)
 #else
     SetTargetFPS(GetMonitorRefreshRate(GetCurrentMonitor()));
     // SetTargetFPS(0);
-    ToggleBorderlessWindowed();
     while (!WindowShouldClose()) {
         UpdateAndDraw();
     }
