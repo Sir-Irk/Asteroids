@@ -13,8 +13,8 @@
 #include <math.h>
 #include <stdint.h>
 
-#include <raylib.h>
-#include <raymath.h>
+#include "../include/raylib.h"
+#include "../include/raymath.h"
 
 #if defined(PLATFORM_WEB)
 #include <emscripten/emscripten.h>
@@ -268,8 +268,11 @@ static void InitializeGame(GameState *state)
 
         InitializeBloomEffect(&state->bloom, state->screen_width, state->screen_height);
 
+#if defined(PLATFORM_WEB)
+        state->fxaa_shader = LoadShader(NULL, "shaders/fxaa_300_es.frag");
+#else
         state->fxaa_shader = LoadShader(NULL, "shaders/fxaa.frag");
-
+#endif
         for (i32 i = 0; i < countof(state->render_targets); ++i) {
             state->render_targets[i] = LoadRenderTexture(state->screen_width, state->screen_height);
             SetTextureFilter(state->render_targets[i].texture, TEXTURE_FILTER_BILINEAR);

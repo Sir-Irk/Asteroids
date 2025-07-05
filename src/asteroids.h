@@ -1,8 +1,8 @@
 #ifndef ASTEROIDS_HEADER_GUARD
 #define ASTEROIDS_HEADER_GUARD
 
-#include <raylib.h>
-#include <raymath.h>
+#include "../include/raylib.h"
+#include "../include/raymath.h"
 #include "types.h"
 
 #define swap(a, b, type)                                                                                                                   \
